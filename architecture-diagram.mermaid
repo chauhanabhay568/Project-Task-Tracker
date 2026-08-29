@@ -1,0 +1,29 @@
+flowchart TB
+    subgraph Client["Browser"]
+        A["User<br/>(Manager or Member)"]
+    end
+
+    subgraph Server["Django App — runs on Render"]
+        B["URLs / Views<br/>(project, task, dashboard, alerts)"]
+        C["manager_required<br/>permission checks"]
+        D["Business logic functions<br/>transition_fn · assign_fn · bulk_apply_fn"]
+        E["record_change()<br/>audit-log helper"]
+        F["Templates<br/>(HTML rendering)"]
+    end
+
+    subgraph DB["PostgreSQL — runs on Supabase"]
+        G[("Users / Projects /<br/>ProjectMembership /<br/>Tasks / TaskAssignment /<br/>TaskBlocker")]
+        H[("HistoryEntry / Comment<br/>(append-only)")]
+        I[("AlertDismissal")]
+    end
+
+    A -- "1. HTTP request" --> B
+    B -- "2. check role" --> C
+    C -- "3a. denied → 403" --> A
+    C -- "3b. allowed" --> D
+    D -- "4. read/write task data" --> G
+    D -- "5. every change logged" --> E
+    E -- "6. append history row" --> H
+    D -- "reads/writes" --> I
+    D --> F
+    F -- "7. rendered HTML" --> A
