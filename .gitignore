@@ -4,7 +4,11 @@ build/
 .next/
 target/
 __pycache__/
+**/__pycache__/
+*.py[cod]
 venv/
+.venv/
+*.sqlite3
 .env
 .env.local
 .env.*.local
