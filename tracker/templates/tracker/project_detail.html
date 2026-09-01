@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.name }} — Project Task Tracker{% endblock %}
+
+{% block extra_head %}
+<style>
+  .project-header { margin-bottom: 2rem; }
+  .project-header h1 { font-size: 1.5rem; font-weight: 600; }
+  .project-key { font-family: monospace; font-size: 0.85rem; background: #f1f5f9; color: #475569; padding: 2px 8px; border-radius: 4px; margin-right: 0.5rem; }
+  .back-link { font-size: 0.875rem; color: #64748b; text-decoration: none; display: inline-block; margin-bottom: 1rem; }
+  .back-link:hover { color: #1e293b; }
+  .placeholder { color: #94a3b8; font-size: 0.95rem; margin-top: 1rem; }
+  .project-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2rem; }
+  .project-header h1 { font-size: 1.5rem; font-weight: 600; }
+  .btn-edit { padding: 0.4rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.875rem; color: #374151; text-decoration: none; }
+  .btn-edit:hover { background: #f1f5f9; }
+</style>
+{% endblock %}
+
+{% block content %}
+<a class="back-link" href="{% url 'project_list' %}">← Back to Projects</a>
+
+<div class="project-header">
+  <h1><span class="project-key">{{ project.key }}</span>{{ project.name }}</h1>
+  {% if user.role == 'manager' %}
+    <a class="btn-edit" href="{% url 'project_edit' project.pk %}">Edit</a>
+  {% endif %}
+</div>
+
+<p class="placeholder">Tasks coming soon.</p>
+{% endblock %}

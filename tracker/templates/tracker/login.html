@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}Log in — Project Task Tracker{% endblock %}
+
+{% block extra_head %}
+<style>
+  .login-wrap { display: flex; justify-content: center; margin-top: 5rem; }
+  .login-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 2rem; width: 100%; max-width: 380px; }
+  .login-card h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; }
+  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 1rem; }
+  .field label { font-size: 0.875rem; font-weight: 500; color: #374151; }
+  .form-input { border: 1px solid #d1d5db; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.9rem; width: 100%; }
+  .form-input:focus { outline: 2px solid #3b82f6; outline-offset: -1px; border-color: transparent; }
+  .error-list { background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; color: #b91c1c; font-size: 0.875rem; list-style: none; }
+  .btn-submit { width: 100%; padding: 0.6rem; background: #1e293b; color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 500; cursor: pointer; margin-top: 0.5rem; }
+  .btn-submit:hover { background: #334155; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="login-wrap">
+  <div class="login-card">
+    <h1>Log in</h1>
+
+    {% if form.non_field_errors %}
+      <ul class="error-list">
+        {% for error in form.non_field_errors %}
+          <li>{{ error }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <div class="field">
+        <label for="id_email">{{ form.email.label }}</label>
+        {{ form.email }}
+        {% if form.email.errors %}
+          <span style="color:#b91c1c;font-size:0.8rem;">{{ form.email.errors.0 }}</span>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        <label for="id_password">{{ form.password.label }}</label>
+        {{ form.password }}
+        {% if form.password.errors %}
+          <span style="color:#b91c1c;font-size:0.8rem;">{{ form.password.errors.0 }}</span>
+        {% endif %}
+      </div>
+
+      <button type="submit" class="btn-submit">Log in</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

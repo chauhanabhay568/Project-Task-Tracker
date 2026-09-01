@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}{% if object %}Edit {{ object.name }}{% else %}New Project{% endif %} — Project Task Tracker{% endblock %}
+
+{% block extra_head %}
+<style>
+  .form-card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 2rem; max-width: 560px; }
+  .form-card h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; }
+  .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 1.25rem; }
+  .field label { font-size: 0.875rem; font-weight: 500; color: #374151; }
+  .field .help { font-size: 0.8rem; color: #64748b; }
+  .form-input { border: 1px solid #d1d5db; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.9rem; width: 100%; font-family: inherit; }
+  .form-input:focus { outline: 2px solid #3b82f6; outline-offset: -1px; border-color: transparent; }
+  .field-error { color: #b91c1c; font-size: 0.8rem; }
+  .form-actions { display: flex; gap: 0.75rem; align-items: center; margin-top: 1.5rem; }
+  .btn-primary { padding: 0.55rem 1.25rem; background: #1e293b; color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 500; cursor: pointer; }
+  .btn-primary:hover { background: #334155; }
+  .btn-cancel { font-size: 0.875rem; color: #64748b; text-decoration: none; }
+  .btn-cancel:hover { color: #1e293b; }
+  .back-link { font-size: 0.875rem; color: #64748b; text-decoration: none; display: inline-block; margin-bottom: 1.25rem; }
+  .back-link:hover { color: #1e293b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<a class="back-link" href="{% if object %}{% url 'project_detail' object.pk %}{% else %}{% url 'project_list' %}{% endif %}">← Back</a>
+
+<div class="form-card">
+  <h1>{% if object %}Edit {{ object.name }}{% else %}New Project{% endif %}</h1>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    <div class="field">
+      <label for="{{ form.key.id_for_label }}">{{ form.key.label }}</label>
+      <span class="help">Short uppercase identifier, e.g. PROJ</span>
+      {{ form.key }}
+      {% if form.key.errors %}<span class="field-error">{{ form.key.errors.0 }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+      {{ form.name }}
+      {% if form.name.errors %}<span class="field-error">{{ form.name.errors.0 }}</span>{% endif %}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+      {{ form.description }}
+      {% if form.description.errors %}<span class="field-error">{{ form.description.errors.0 }}</span>{% endif %}
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn-primary">{% if object %}Save changes{% else %}Create project{% endif %}</button>
+      <a class="btn-cancel" href="{% if object %}{% url 'project_detail' object.pk %}{% else %}{% url 'project_list' %}{% endif %}">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,3 +1,131 @@
-from django.shortcuts import render
+from django import forms
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.views import LoginView
+from django.urls import reverse_lazy
+from django.utils.decorators import method_decorator
+from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
-# Create your views here.
+from .decorators import manager_required
+from .models import Project, ProjectMembership, User
+
+
+class EmailLoginForm(forms.Form):
+    # Simplification: USERNAME_FIELD is left as 'username', but every account's
+    # username is set equal to their email address at creation time, so presenting
+    # this field as "Email" works without any custom auth backend.
+    email = forms.EmailField(
+        label="Email", # This is the human-readable text shown next to the input in the template. 
+                        #Remember {{ form.email.label }} in your login.html? This is exactly where "Email" comes from.
+        widget=forms.EmailInput(attrs={"autofocus": True, "class": "form-input"}),
+    )
+    password = forms.CharField(
+        label="Password",
+        widget=forms.PasswordInput(attrs={"class": "form-input"}),
+    )
+
+
+    """
+    This is a helper method. After the form is submitted and validated, cleaned_data holds the sanitized values. 
+    It returns them as a dict with key "username" (not "email") because Django's auth system expects username.
+    
+    """
+    def get_credentials(self):
+        return {
+            "username": self.cleaned_data["email"],
+            "password": self.cleaned_data["password"],
+        }
+
+
+class EmailLoginView(LoginView):
+    template_name = "tracker/login.html"
+    authentication_form = None  # use default ModelBackend under the hood
+
+    def get_form(self, form_class=None):
+        kwargs = self.get_form_kwargs()
+        kwargs.pop("request", None)
+        # **kwargs means unpacking the dictionary
+        return EmailLoginForm(**kwargs)
+
+
+    def form_valid(self, form):
+
+        """
+        Purpose: runs once the submitted form passes validation — 
+        checks credentials are actually correct, then logs the user in 
+        or shows an error
+        """
+        from django.contrib.auth import authenticate, login
+        credentials = form.get_credentials()
+        user = authenticate(self.request, **credentials)
+        if user is None:
+            form.add_error(None, "Invalid email or password.")
+            return self.form_invalid(form)
+        login(self.request, user)
+        return super(LoginView, self).form_valid(form)
+
+
+class ProjectListView(LoginRequiredMixin, ListView):
+    template_name = "tracker/project_list.html" #tells ListView which template file to render.
+    context_object_name = "projects" #Decides what variable name the template will use to access the list of objects.
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == User.Role.MANAGER:
+            return Project.objects.filter(archived=False).order_by("name")
+        """
+        first, look up every row in ProjectMembership where user matches this person — these rows 
+        represent "this user belongs to this project." .values_list("project_id", flat=True) 
+        extracts just the project IDs from those rows, as a flat list of numbers (rather than full objects) — e.g. [2, 5, 9]
+        """
+        member_project_ids = ProjectMembership.objects.filter(user=user).values_list("project_id", flat=True)
+        # Return only the projects whose id is in that list of member project IDs 
+        # (and still excluding archived ones), sorted by name.
+        return Project.objects.filter(archived=False, id__in=member_project_ids).order_by("name")
+
+
+class ProjectDetailView(LoginRequiredMixin, DetailView):
+    model = Project
+    template_name = "tracker/project_detail.html"
+    context_object_name = "project"
+
+"""
+a form for creating/editing a Project — but unlike forms.Form, a ModelForm builds 
+its fields directly from a model, instead of you declaring each field by hand.
+"""
+class ProjectForm(forms.ModelForm):
+    class Meta:
+        model = Project
+        fields = ["key", "name", "description"]
+        widgets = {
+            "key": forms.TextInput(attrs={"class": "form-input"}),
+            "name": forms.TextInput(attrs={"class": "form-input"}),
+            "description": forms.Textarea(attrs={"class": "form-input", "rows": 4}),
+        }
+
+"""
+the "create a new project" page — shows the form, and on valid submission, creates a new Project row.
+"""
+@method_decorator(manager_required, name="dispatch")
+class ProjectCreateView(CreateView):
+    form_class = ProjectForm
+    template_name = "tracker/project_form.html"
+
+    def form_valid(self, form):
+        form.instance.owner = self.request.user
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("project_detail", kwargs={"pk": self.object.pk})
+
+"""
+the "edit an existing project" page — same form, but pre-filled with an existing project's data, 
+and saves changes to that same row instead of creating a new one.
+"""
+@method_decorator(manager_required, name="dispatch")
+class ProjectUpdateView(UpdateView):
+    model = Project
+    form_class = ProjectForm
+    template_name = "tracker/project_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("project_detail", kwargs={"pk": self.object.pk})

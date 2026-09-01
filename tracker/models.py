@@ -4,15 +4,9 @@ from django.db import models
 
 class User(AbstractUser):
 
-    """
-    Extends Django's built-in AbstractUser — meaning it keeps everything Django gives you (username, password, email, login, sessions) 
-    and adds one field: role — can be admin, member, or viewer. Uses TextChoices, which gives you clean constants (Role.ADMIN) instead 
-    of raw strings scattered everywhere.
-    """
     class Role(models.TextChoices):
-        ADMIN = "admin", "Admin"
+        MANAGER = "manager", "Manager"
         MEMBER = "member", "Member"
-        VIEWER = "viewer", "Viewer"
 
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.MEMBER)
 

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Projects — Project Task Tracker{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header { margin-bottom: 1.5rem; }
+  .page-header h1 { font-size: 1.5rem; font-weight: 600; }
+  .project-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+  .project-table th { text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+  .project-table td { padding: 0.875rem 1rem; font-size: 0.9rem; border-bottom: 1px solid #f1f5f9; }
+  .project-table tr:last-child td { border-bottom: none; }
+  .project-table tr:hover td { background: #f8fafc; }
+  .project-key { font-family: monospace; font-size: 0.8rem; background: #f1f5f9; color: #475569; padding: 2px 6px; border-radius: 4px; }
+  .project-link { font-weight: 500; color: #1e293b; text-decoration: none; }
+  .project-link:hover { color: #3b82f6; }
+  .empty-state { text-align: center; padding: 3rem; color: #94a3b8; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; }
+  .btn-new { padding: 0.45rem 1rem; background: #1e293b; color: #fff; border-radius: 6px; font-size: 0.875rem; font-weight: 500; text-decoration: none; }
+  .btn-new:hover { background: #334155; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Projects</h1>
+  {% if user.role == 'manager' %}
+    <a class="btn-new" href="{% url 'project_create' %}">+ New Project</a>
+  {% endif %}
+</div>
+
+{% if projects %}
+  <table class="project-table">
+    <thead>
+      <tr>
+        <th>Key</th>
+        <th>Name</th>
+        <th>Owner</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for project in projects %}
+        <tr>
+          <td><span class="project-key">{{ project.key }}</span></td>
+          <td><a class="project-link" href="{% url 'project_detail' project.pk %}">{{ project.name }}</a></td>
+          <td>{{ project.owner }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <div class="empty-state">No projects yet.</div>
+{% endif %}
+{% endblock %}
