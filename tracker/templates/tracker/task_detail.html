@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}{{ task.title }} — {{ project.name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .back-link { font-size: 0.875rem; color: #64748b; text-decoration: none; display: inline-block; margin-bottom: 1rem; }
+  .back-link:hover { color: #1e293b; }
+  .task-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 1.5rem; }
+  .task-header h1 { font-size: 1.4rem; font-weight: 600; }
+  .task-actions { display: flex; gap: 0.5rem; flex-shrink: 0; margin-left: 1rem; }
+  .btn-edit { padding: 0.4rem 0.9rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.875rem; color: #374151; text-decoration: none; }
+  .btn-edit:hover { background: #f1f5f9; }
+  .btn-delete { padding: 0.4rem 0.9rem; border: 1px solid #fca5a5; border-radius: 6px; font-size: 0.875rem; color: #b91c1c; background: none; cursor: pointer; }
+  .btn-delete:hover { background: #fef2f2; }
+  .meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
+  .meta-item label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; display: block; margin-bottom: 4px; }
+  .meta-item span { font-size: 0.9rem; color: #1e293b; }
+  .badge { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .badge-backlog { background: #f1f5f9; color: #475569; }
+  .badge-in_progress { background: #dbeafe; color: #1d4ed8; }
+  .badge-in_review { background: #ede9fe; color: #6d28d9; }
+  .badge-blocked { background: #fee2e2; color: #b91c1c; }
+  .badge-done { background: #dcfce7; color: #15803d; }
+  .badge-low { background: #f1f5f9; color: #64748b; }
+  .badge-medium { background: #fef9c3; color: #854d0e; }
+  .badge-high { background: #ffedd5; color: #c2410c; }
+  .badge-critical { background: #fee2e2; color: #b91c1c; }
+  .description-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; font-size: 0.9rem; line-height: 1.6; color: #374151; white-space: pre-wrap; }
+  .placeholder { color: #94a3b8; font-size: 0.875rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<a class="back-link" href="{% url 'project_detail' project.pk %}">← Back to {{ project.name }}</a>
+
+<div class="task-header">
+  <h1>{{ task.title }}</h1>
+  <div class="task-actions">
+    <a class="btn-edit" href="{% url 'task_edit' task.pk %}">Edit</a>
+    {% if user.role == 'manager' %}
+      <form method="post" action="{% url 'task_delete' task.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn-delete"
+          onclick="return confirm('Delete this task?')">Delete</button>
+      </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="meta-grid">
+  <div class="meta-item">
+    <label>Status</label>
+    <span><span class="badge badge-{{ task.status }}">{{ task.get_status_display }}</span></span>
+  </div>
+  <div class="meta-item">
+    <label>Priority</label>
+    <span><span class="badge badge-{{ task.priority }}">{{ task.get_priority_display }}</span></span>
+  </div>
+  <div class="meta-item">
+    <label>Due Date</label>
+    <span>{{ task.due_date|default:"—" }}</span>
+  </div>
+  <div class="meta-item">
+    <label>Project</label>
+    <span>{{ project.name }}</span>
+  </div>
+</div>
+
+{% if task.description %}
+  <div class="description-box">{{ task.description }}</div>
+{% else %}
+  <p class="placeholder">No description.</p>
+{% endif %}
+
+{% endblock %}

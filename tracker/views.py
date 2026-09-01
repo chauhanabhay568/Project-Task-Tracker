@@ -5,10 +5,11 @@ from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views.decorators.http import require_POST
-from django.views.generic import CreateView, DetailView, ListView, UpdateView
+from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
 from .decorators import manager_required
-from .models import Project, ProjectMembership, User
+from .mixins import ProjectAccessMixin
+from .models import Project, ProjectMembership, Task, User
 
 
 class EmailLoginForm(forms.Form):
@@ -173,3 +174,73 @@ class ArchivedProjectListView(ListView):
 
     def get_queryset(self):
         return Project.objects.filter(archived=True).order_by("name")
+
+
+# ---------------------------------------------------------------------------
+# Task views
+# ---------------------------------------------------------------------------
+
+class TaskForm(forms.ModelForm):
+    class Meta:
+        model = Task
+        fields = ["title", "description", "priority", "due_date"]
+        widgets = {
+            "title": forms.TextInput(attrs={"class": "form-input"}),
+            "description": forms.Textarea(attrs={"class": "form-input", "rows": 3}),
+            "priority": forms.Select(attrs={"class": "form-input"}),
+            "due_date": forms.DateInput(attrs={"class": "form-input", "type": "date"}),
+        }
+
+
+class TaskCreateView(LoginRequiredMixin, ProjectAccessMixin, CreateView):
+    model = Task
+    form_class = TaskForm
+    template_name = "tracker/task_form.html"
+
+    def form_valid(self, form):
+        form.instance.project = self.project
+        form.instance.status = Task.Status.BACKLOG
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse_lazy("project_detail", kwargs={"pk": self.project.pk})
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["project"] = self.project
+        return ctx
+
+
+class TaskDetailView(LoginRequiredMixin, ProjectAccessMixin, DetailView):
+    model = Task
+    template_name = "tracker/task_detail.html"
+    context_object_name = "task"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["project"] = self.project
+        return ctx
+
+
+class TaskUpdateView(LoginRequiredMixin, ProjectAccessMixin, UpdateView):
+    model = Task
+    form_class = TaskForm
+    template_name = "tracker/task_form.html"
+
+    def get_success_url(self):
+        return reverse_lazy("task_detail", kwargs={"pk": self.object.pk})
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["project"] = self.project
+        return ctx
+
+
+@method_decorator(manager_required, name="dispatch")
+class TaskDeleteView(DeleteView):
+    model = Task
+    template_name = "tracker/task_confirm_delete.html"
+    context_object_name = "task"
+
+    def get_success_url(self):
+        return reverse_lazy("project_detail", kwargs={"pk": self.object.project.pk})
