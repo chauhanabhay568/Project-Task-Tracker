@@ -1,8 +1,10 @@
 from django import forms
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
+from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DetailView, ListView, UpdateView
 
 from .decorators import manager_required
@@ -129,3 +131,45 @@ class ProjectUpdateView(UpdateView):
 
     def get_success_url(self):
         return reverse_lazy("project_detail", kwargs={"pk": self.object.pk})
+
+
+
+"""
+Both views do the same thing in opposite directions:
+
+- @require_POST — only accepts POST requests (from a form button), not someone typing the URL
+- @manager_required — only managers can reach this, members get 403
+- get_object_or_404 — finds the project or returns 404
+- Sets archived = True (or False for restore) and saves — only this one field, nothing else is touched
+- Redirects back to the same project's detail page
+
+"""
+@require_POST
+@manager_required
+def archive_project(request, pk):
+    project = get_object_or_404(Project, pk=pk)
+    project.archived = True
+    project.save()
+    return redirect("project_detail", pk=pk)
+
+
+@require_POST
+@manager_required
+def restore_project(request, pk):
+    project = get_object_or_404(Project, pk=pk)
+    project.archived = False
+    project.save()
+    return redirect("project_detail", pk=pk)
+
+"""
+ It's the page at /projects/archived/ that lists all archived projects — only visible to managers.
+"""
+@method_decorator(manager_required, name="dispatch")
+class ArchivedProjectListView(ListView):
+    template_name = "tracker/project_archived_list.html"
+    #  context_object_name = "projects" — passes the list to the template 
+    # as {{ projects }}, same variable name as the regular list so the template works the same way.
+    context_object_name = "projects"
+
+    def get_queryset(self):
+        return Project.objects.filter(archived=True).order_by("name")

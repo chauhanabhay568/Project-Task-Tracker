@@ -24,6 +24,9 @@
     <div class="nav-right">
       {% if user.is_authenticated %}
         <a href="{% url 'project_list' %}">Projects</a>
+        {% if user.role == 'manager' %}
+          <a href="{% url 'project_archived_list' %}">Archived</a>
+        {% endif %}
         <span class="nav-user">
           {{ user.username }}
           <span class="nav-role">{{ user.role }}</span>

@@ -1,7 +1,16 @@
 from django.contrib.auth.views import LogoutView
 from django.urls import path
 
-from .views import EmailLoginView, ProjectCreateView, ProjectDetailView, ProjectListView, ProjectUpdateView
+from .views import (
+    ArchivedProjectListView,
+    EmailLoginView,
+    ProjectCreateView,
+    ProjectDetailView,
+    ProjectListView,
+    ProjectUpdateView,
+    archive_project,
+    restore_project,
+)
 
 """
 path("login/", EmailLoginView.as_view(), name="login")
@@ -25,4 +34,7 @@ urlpatterns = [
     path("projects/new/", ProjectCreateView.as_view(), name="project_create"),
     path("projects/<int:pk>/", ProjectDetailView.as_view(), name="project_detail"),
     path("projects/<int:pk>/edit/", ProjectUpdateView.as_view(), name="project_edit"),
+    path("projects/<int:pk>/archive/", archive_project, name="project_archive"),
+    path("projects/<int:pk>/restore/", restore_project, name="project_restore"),
+    path("projects/archived/", ArchivedProjectListView.as_view(), name="project_archived_list"),
 ]
