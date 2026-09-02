@@ -11,6 +11,7 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from .audit import log_change
 from .decorators import manager_required
+from .services import cascade_unassign
 from .mixins import ProjectAccessMixin
 from .models import Project, ProjectMembership, Task, TaskAssignment, User
 from .transitions import attempt_transition, legal_next_statuses
@@ -187,7 +188,14 @@ def add_member(request, pk):
 @manager_required
 def remove_member(request, pk, user_id):
     project = get_object_or_404(Project, pk=pk)
-    ProjectMembership.objects.filter(project=project, user_id=user_id).delete()
+    user = get_object_or_404(User, pk=user_id)
+    ProjectMembership.objects.filter(project=project, user=user).delete()
+    count = cascade_unassign(user, project, actor=request.user)
+    if count > 0:
+        messages.info(
+            request,
+            f"Removed {user} from the project and unassigned them from {count} task(s).",
+        )
     return redirect("project_detail", pk=pk)
 
 """
