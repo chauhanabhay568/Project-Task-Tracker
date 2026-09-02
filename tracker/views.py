@@ -9,9 +9,10 @@ from django.views import View
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
+from .audit import log_change
 from .decorators import manager_required
 from .mixins import ProjectAccessMixin
-from .models import Project, ProjectMembership, Task, User
+from .models import Project, ProjectMembership, Task, TaskAssignment, User
 from .transitions import attempt_transition, legal_next_statuses
 
 
@@ -94,6 +95,12 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
     template_name = "tracker/project_detail.html"
     context_object_name = "project"
 
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        member_ids = self.object.memberships.values_list("user_id", flat=True)
+        ctx["non_members"] = User.objects.exclude(pk__in=member_ids).order_by("username")
+        return ctx
+
 """
 a form for creating/editing a Project — but unlike forms.Form, a ModelForm builds 
 its fields directly from a model, instead of you declaring each field by hand.
@@ -163,6 +170,24 @@ def restore_project(request, pk):
     project = get_object_or_404(Project, pk=pk)
     project.archived = False
     project.save()
+    return redirect("project_detail", pk=pk)
+
+
+@require_POST
+@manager_required
+def add_member(request, pk):
+    project = get_object_or_404(Project, pk=pk)
+    user_id = request.POST.get("user_id")
+    user = get_object_or_404(User, pk=user_id)
+    ProjectMembership.objects.get_or_create(project=project, user=user)
+    return redirect("project_detail", pk=pk)
+
+
+@require_POST
+@manager_required
+def remove_member(request, pk, user_id):
+    project = get_object_or_404(Project, pk=pk)
+    ProjectMembership.objects.filter(project=project, user_id=user_id).delete()
     return redirect("project_detail", pk=pk)
 
 """
@@ -241,6 +266,12 @@ class TaskDetailView(LoginRequiredMixin, ProjectAccessMixin, DetailView):
         ctx["legal_statuses"] = [
             (s, status_display[s]) for s in legal_next_statuses(self.object)
         ]
+        assigned_user_ids = self.object.assignments.values_list("user_id", flat=True)
+        ctx["assignees"] = User.objects.filter(pk__in=assigned_user_ids)
+        member_ids = self.project.memberships.values_list("user_id", flat=True)
+        ctx["assignable_members"] = User.objects.filter(
+            pk__in=member_ids
+        ).exclude(pk__in=assigned_user_ids).order_by("username")
         return ctx
 
 
@@ -260,6 +291,53 @@ class TaskStatusChangeView(LoginRequiredMixin, ProjectAccessMixin, View):
             messages.success(request, f"Moved to {self.task.get_status_display()}.")
         else:
             messages.error(request, reason)
+        return redirect("task_detail", pk=self.task.pk)
+
+
+class TaskAssignView(LoginRequiredMixin, ProjectAccessMixin, View):
+    http_method_names = ["post"]
+
+    def get_object(self):
+        if not hasattr(self, "task"):
+            self.task = get_object_or_404(Task, pk=self.kwargs["pk"])
+        return self.task
+
+    def post(self, request, pk):
+        self.get_object()
+        user = get_object_or_404(User, pk=request.POST.get("user_id"))
+        is_member = ProjectMembership.objects.filter(
+            project=self.project, user=user
+        ).exists()
+        if not is_member:
+            messages.error(
+                request,
+                f"{user.username} is not a member of this project and cannot be assigned.",
+            )
+            return redirect("task_detail", pk=self.task.pk)
+        assignment, created = TaskAssignment.objects.get_or_create(
+            task=self.task, user=user
+        )
+        if created:
+            log_change(self.task, "assignee", None, str(user), request.user)
+        return redirect("task_detail", pk=self.task.pk)
+
+
+class TaskUnassignView(LoginRequiredMixin, ProjectAccessMixin, View):
+    http_method_names = ["post"]
+
+    def get_object(self):
+        if not hasattr(self, "task"):
+            self.task = get_object_or_404(Task, pk=self.kwargs["pk"])
+        return self.task
+
+    def post(self, request, pk):
+        self.get_object()
+        user = get_object_or_404(User, pk=request.POST.get("user_id"))
+        deleted, _ = TaskAssignment.objects.filter(
+            task=self.task, user=user
+        ).delete()
+        if deleted:
+            log_change(self.task, "assignee", str(user), None, request.user)
         return redirect("task_detail", pk=self.task.pk)
 
 

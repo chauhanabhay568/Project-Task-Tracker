@@ -8,12 +8,16 @@ from .views import (
     ProjectDetailView,
     ProjectListView,
     ProjectUpdateView,
+    TaskAssignView,
     TaskCreateView,
     TaskDeleteView,
     TaskDetailView,
     TaskStatusChangeView,
+    TaskUnassignView,
     TaskUpdateView,
+    add_member,
     archive_project,
+    remove_member,
     restore_project,
 )
 
@@ -47,4 +51,8 @@ urlpatterns = [
     path("tasks/<int:pk>/edit/", TaskUpdateView.as_view(), name="task_edit"),
     path("tasks/<int:pk>/delete/", TaskDeleteView.as_view(), name="task_delete"),
     path("tasks/<int:pk>/status/", TaskStatusChangeView.as_view(), name="task_status_change"),
+    path("tasks/<int:pk>/assign/", TaskAssignView.as_view(), name="task_assign"),
+    path("tasks/<int:pk>/unassign/", TaskUnassignView.as_view(), name="task_unassign"),
+    path("projects/<int:pk>/members/add/", add_member, name="project_add_member"),
+    path("projects/<int:pk>/members/<int:user_id>/remove/", remove_member, name="project_remove_member"),
 ]

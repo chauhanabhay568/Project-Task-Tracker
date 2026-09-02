@@ -42,6 +42,20 @@
   .badge-high { background: #ffedd5; color: #c2410c; }
   .badge-critical { background: #fee2e2; color: #b91c1c; }
   .empty-tasks { color: #94a3b8; font-size: 0.9rem; padding: 1.5rem 0; }
+  .members-section { margin-top: 2.5rem; }
+  .members-section h2 { font-size: 1rem; font-weight: 600; margin-bottom: 0.75rem; }
+  .member-list { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; margin-bottom: 1rem; }
+  .member-row { display: flex; align-items: center; justify-content: space-between; padding: 0.6rem 1rem; border-bottom: 1px solid #f1f5f9; font-size: 0.875rem; }
+  .member-row:last-child { border-bottom: none; }
+  .member-name { color: #1e293b; }
+  .member-role { font-size: 0.7rem; background: #f1f5f9; color: #64748b; padding: 2px 6px; border-radius: 4px; margin-left: 0.4rem; }
+  .btn-remove { padding: 0.25rem 0.6rem; border: 1px solid #fca5a5; border-radius: 5px; font-size: 0.75rem; color: #b91c1c; background: none; cursor: pointer; }
+  .btn-remove:hover { background: #fef2f2; }
+  .add-member-form { display: flex; gap: 0.5rem; align-items: center; }
+  .add-member-form select { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.875rem; background: #fff; }
+  .btn-add { padding: 0.4rem 0.85rem; background: #1e293b; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; }
+  .btn-add:hover { background: #334155; }
+  .no-members { color: #94a3b8; font-size: 0.875rem; padding: 0.75rem 0; }
 </style>
 {% endblock %}
 
@@ -103,4 +117,44 @@
   <p class="empty-tasks">No tasks yet.</p>
 {% endif %}
 {% endwith %}
+
+{% if user.role == 'manager' %}
+<div class="members-section">
+  <h2>Members</h2>
+
+  {% with memberships=project.memberships.all %}
+  {% if memberships %}
+    <div class="member-list">
+      {% for m in memberships %}
+        <div class="member-row">
+          <span class="member-name">
+            {{ m.user.username }}
+            <span class="member-role">{{ m.user.role }}</span>
+          </span>
+          <form method="post" action="{% url 'project_remove_member' project.pk m.user.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn-remove">Remove</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="no-members">No members yet.</p>
+  {% endif %}
+  {% endwith %}
+
+  {% if non_members %}
+    <form method="post" action="{% url 'project_add_member' project.pk %}" class="add-member-form">
+      {% csrf_token %}
+      <select name="user_id">
+        {% for u in non_members %}
+          <option value="{{ u.pk }}">{{ u.username }} ({{ u.role }})</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn-add">Add Member</button>
+    </form>
+  {% endif %}
+</div>
+{% endif %}
+
 {% endblock %}

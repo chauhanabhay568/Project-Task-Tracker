@@ -32,6 +32,17 @@
   .status-actions span { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-right: 0.25rem; }
   .btn-status { padding: 0.35rem 0.85rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: 1px solid #cbd5e1; background: #fff; color: #374151; }
   .btn-status:hover { background: #f1f5f9; }
+  .assignees-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
+  .assignees-section h3 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 0.75rem; }
+  .assignee-row { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0; font-size: 0.875rem; color: #1e293b; border-bottom: 1px solid #f1f5f9; }
+  .assignee-row:last-of-type { border-bottom: none; }
+  .btn-unassign { padding: 0.2rem 0.55rem; border: 1px solid #fca5a5; border-radius: 5px; font-size: 0.75rem; color: #b91c1c; background: none; cursor: pointer; }
+  .btn-unassign:hover { background: #fef2f2; }
+  .assign-form { display: flex; gap: 0.5rem; margin-top: 0.75rem; align-items: center; }
+  .assign-form select { flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.875rem; background: #fff; }
+  .btn-assign { padding: 0.35rem 0.75rem; background: #1e293b; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; }
+  .btn-assign:hover { background: #334155; }
+  .no-assignees { color: #94a3b8; font-size: 0.875rem; }
 </style>
 {% endblock %}
 
@@ -83,6 +94,36 @@
     {% endfor %}
   </div>
 {% endif %}
+
+<div class="assignees-section">
+  <h3>Assigned to</h3>
+  {% if assignees %}
+    {% for u in assignees %}
+      <div class="assignee-row">
+        <span>{{ u.username }}</span>
+        <form method="post" action="{% url 'task_unassign' task.pk %}">
+          {% csrf_token %}
+          <input type="hidden" name="user_id" value="{{ u.pk }}">
+          <button type="submit" class="btn-unassign">Unassign</button>
+        </form>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="no-assignees">No one assigned yet.</p>
+  {% endif %}
+
+  {% if assignable_members %}
+    <form method="post" action="{% url 'task_assign' task.pk %}" class="assign-form">
+      {% csrf_token %}
+      <select name="user_id">
+        {% for u in assignable_members %}
+          <option value="{{ u.pk }}">{{ u.username }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit" class="btn-assign">Assign</button>
+    </form>
+  {% endif %}
+</div>
 
 {% if task.description %}
   <div class="description-box">{{ task.description }}</div>
