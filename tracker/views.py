@@ -1,15 +1,18 @@
 from django import forms
+from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
+from django.views import View
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DeleteView, DetailView, ListView, UpdateView
 
 from .decorators import manager_required
 from .mixins import ProjectAccessMixin
 from .models import Project, ProjectMembership, Task, User
+from .transitions import attempt_transition, legal_next_statuses
 
 
 class EmailLoginForm(forms.Form):
@@ -180,6 +183,9 @@ class ArchivedProjectListView(ListView):
 # Task views
 # ---------------------------------------------------------------------------
 
+"""
+It creates a form automatically using the model(basically table) fields.
+"""
 class TaskForm(forms.ModelForm):
     class Meta:
         model = Task
@@ -187,7 +193,7 @@ class TaskForm(forms.ModelForm):
         widgets = {
             "title": forms.TextInput(attrs={"class": "form-input"}),
             "description": forms.Textarea(attrs={"class": "form-input", "rows": 3}),
-            "priority": forms.Select(attrs={"class": "form-input"}),
+            "priority"   : forms.Select(attrs={"class": "form-input"}),
             "due_date": forms.DateInput(attrs={"class": "form-input", "type": "date"}),
         }
 
@@ -197,6 +203,18 @@ class TaskCreateView(LoginRequiredMixin, ProjectAccessMixin, CreateView):
     form_class = TaskForm
     template_name = "tracker/task_form.html"
 
+    """
+    When it runs: only after the submitted form has already passed validation (title isn't empty, due_date is a real date, etc.) — 
+        right before the object gets saved to the database.
+    form.instance is the not-yet-saved Task object that Django built from the form data. The form itself only collects title, 
+    description, priority, due_date (that's all TaskForm.Meta.fields lists) — it has no field for project or status, because 
+    those shouldn't come from user input. So this method fills in the two missing pieces by hand:
+
+            project → whatever project the URL pointed to (self.project, supplied by ProjectAccessMixin)
+            status → always force it to BACKLOG, since every task should start there
+
+    Then super().form_valid(form) hands control back to Django's normal CreateView, which actually calls form.save() and stores the row.
+    """
     def form_valid(self, form):
         form.instance.project = self.project
         form.instance.status = Task.Status.BACKLOG
@@ -219,7 +237,30 @@ class TaskDetailView(LoginRequiredMixin, ProjectAccessMixin, DetailView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["project"] = self.project
+        status_display = dict(Task.Status.choices)
+        ctx["legal_statuses"] = [
+            (s, status_display[s]) for s in legal_next_statuses(self.object)
+        ]
         return ctx
+
+
+class TaskStatusChangeView(LoginRequiredMixin, ProjectAccessMixin, View):
+    http_method_names = ["post"]
+
+    def get_object(self):
+        if not hasattr(self, "task"):
+            self.task = get_object_or_404(Task, pk=self.kwargs["pk"])
+        return self.task
+
+    def post(self, request, pk):
+        self.get_object()
+        new_status = request.POST.get("new_status")
+        ok, reason = attempt_transition(self.task, new_status, actor=request.user)
+        if ok:
+            messages.success(request, f"Moved to {self.task.get_status_display()}.")
+        else:
+            messages.error(request, reason)
+        return redirect("task_detail", pk=self.task.pk)
 
 
 class TaskUpdateView(LoginRequiredMixin, ProjectAccessMixin, UpdateView):

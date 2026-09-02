@@ -2,7 +2,7 @@ from django.core.exceptions import PermissionDenied
 
 from .models import Project, ProjectMembership, User
 
-
+# that checks if the logged-in user is a member or manager of the project before allowing access to task views
 class ProjectAccessMixin:
     """
     Resolves the relevant project and enforces membership/manager access.

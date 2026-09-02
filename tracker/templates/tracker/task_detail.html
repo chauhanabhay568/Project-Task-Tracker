@@ -28,6 +28,10 @@
   .badge-critical { background: #fee2e2; color: #b91c1c; }
   .description-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; font-size: 0.9rem; line-height: 1.6; color: #374151; white-space: pre-wrap; }
   .placeholder { color: #94a3b8; font-size: 0.875rem; }
+  .status-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; align-items: center; }
+  .status-actions span { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-right: 0.25rem; }
+  .btn-status { padding: 0.35rem 0.85rem; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; border: 1px solid #cbd5e1; background: #fff; color: #374151; }
+  .btn-status:hover { background: #f1f5f9; }
 </style>
 {% endblock %}
 
@@ -66,6 +70,19 @@
     <span>{{ project.name }}</span>
   </div>
 </div>
+
+{% if legal_statuses %}
+  <div class="status-actions">
+    <span>Move to</span>
+    {% for value, label in legal_statuses %}
+      <form method="post" action="{% url 'task_status_change' task.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="new_status" value="{{ value }}">
+        <button type="submit" class="btn-status">{{ label }}</button>
+      </form>
+    {% endfor %}
+  </div>
+{% endif %}
 
 {% if task.description %}
   <div class="description-box">{{ task.description }}</div>
