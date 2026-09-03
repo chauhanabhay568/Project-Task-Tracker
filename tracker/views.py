@@ -52,6 +52,7 @@ class EmailLoginView(LoginView):
         kwargs = self.get_form_kwargs()
         kwargs.pop("request", None)
         # **kwargs means unpacking the dictionary
+        # calling a class = creating an instance. The ** just unpacks the dict into named arguments
         return EmailLoginForm(**kwargs)
 
 
@@ -60,9 +61,11 @@ class EmailLoginView(LoginView):
         """
         Purpose: runs once the submitted form passes validation — 
         checks credentials are actually correct, then logs the user in 
-        or shows an error
+        or shows an error.
+        If the form is not valid then renderinf happens automatically by Django else it redirects to /project/
         """
         from django.contrib.auth import authenticate, login
+        # form.get_credentials() which returns {"username": email_value, "password": password_value}
         credentials = form.get_credentials()
         user = authenticate(self.request, **credentials)
         if user is None:
@@ -70,7 +73,6 @@ class EmailLoginView(LoginView):
             return self.form_invalid(form)
         login(self.request, user)
         return super(LoginView, self).form_valid(form)
-
 
 class ProjectListView(LoginRequiredMixin, ListView):
     template_name = "tracker/project_list.html" #tells ListView which template file to render.
@@ -128,6 +130,7 @@ class ProjectCreateView(CreateView):
         form.instance.owner = self.request.user
         return super().form_valid(form)
 
+# builds the URL /projects/<pk>/ from the URL name instead of hardcoding the path.
     def get_success_url(self):
         return reverse_lazy("project_detail", kwargs={"pk": self.object.pk})
 
@@ -143,6 +146,7 @@ class ProjectUpdateView(UpdateView):
 
     def get_success_url(self):
         return reverse_lazy("project_detail", kwargs={"pk": self.object.pk})
+
 
 
 
@@ -371,3 +375,23 @@ class TaskDeleteView(DeleteView):
 
     def get_success_url(self):
         return reverse_lazy("project_detail", kwargs={"pk": self.object.project.pk})
+
+
+class MyTasksView(LoginRequiredMixin, ListView):
+    model = Task
+    template_name = "tracker/my_tasks.html"
+    context_object_name = "tasks"
+
+    def get_queryset(self):
+        return (
+            Task.objects.filter(assignments__user=self.request.user)
+            .select_related("project")
+            .distinct()
+            .order_by("due_date")
+        )
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        from datetime import date
+        ctx["today"] = date.today()
+        return ctx

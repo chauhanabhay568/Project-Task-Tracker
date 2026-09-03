@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+
+{% block title %}My Tasks — Project Task Tracker{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header { display: flex; align-items: center; margin-bottom: 1.5rem; }
+  .page-header h1 { font-size: 1.5rem; font-weight: 600; }
+  .task-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+  .task-table th { text-align: left; padding: 0.75rem 1rem; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+  .task-table td { padding: 0.875rem 1rem; font-size: 0.9rem; border-bottom: 1px solid #f1f5f9; }
+  .task-table tr:last-child td { border-bottom: none; }
+  .task-table tr:hover td { background: #f8fafc; }
+  .task-link { font-weight: 500; color: #1e293b; text-decoration: none; }
+  .task-link:hover { color: #3b82f6; }
+  .project-link { color: #3b82f6; text-decoration: none; font-size: 0.85rem; }
+  .project-link:hover { text-decoration: underline; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 500; }
+  .status-backlog { background: #f1f5f9; color: #475569; }
+  .status-in_progress { background: #dbeafe; color: #1d4ed8; }
+  .status-in_review { background: #fef9c3; color: #854d0e; }
+  .status-done { background: #dcfce7; color: #15803d; }
+  .status-blocked { background: #fee2e2; color: #b91c1c; }
+  .priority-low { background: #f1f5f9; color: #64748b; }
+  .priority-medium { background: #fef9c3; color: #92400e; }
+  .priority-high { background: #fee2e2; color: #b91c1c; }
+  .due-overdue { color: #b91c1c; font-weight: 500; }
+  .empty-state { text-align: center; padding: 3rem; color: #94a3b8; }
+  .empty-state p { margin-top: 0.5rem; font-size: 0.875rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>My Tasks</h1>
+</div>
+
+{% if tasks %}
+  <table class="task-table">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Project</th>
+        <th>Status</th>
+        <th>Priority</th>
+        <th>Due Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in tasks %}
+        <tr>
+          <td><a class="task-link" href="{% url 'task_detail' task.pk %}">{{ task.title }}</a></td>
+          <td><a class="project-link" href="{% url 'project_detail' task.project.pk %}">{{ task.project.name }}</a></td>
+          <td><span class="badge status-{{ task.status }}">{{ task.get_status_display }}</span></td>
+          <td><span class="badge priority-{{ task.priority }}">{{ task.get_priority_display }}</span></td>
+          <td>
+            {% if task.due_date %}
+              <span {% if task.due_date < today and task.status != 'done' %}class="due-overdue"{% endif %}>
+                {{ task.due_date }}
+              </span>
+            {% else %}
+              <span style="color:#94a3b8;">—</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <div class="empty-state">
+    <strong>No tasks assigned to you yet.</strong>
+    <p>Tasks assigned to you across all your projects will appear here.</p>
+  </div>
+{% endif %}
+{% endblock %}

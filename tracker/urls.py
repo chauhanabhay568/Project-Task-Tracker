@@ -4,6 +4,7 @@ from django.urls import path
 from .views import (
     ArchivedProjectListView,
     EmailLoginView,
+    MyTasksView,
     ProjectCreateView,
     ProjectDetailView,
     ProjectListView,
@@ -20,21 +21,8 @@ from .views import (
     remove_member,
     restore_project,
 )
-
 """
-path("login/", EmailLoginView.as_view(), name="login")
-- "login/" — when someone visits /login/
-- EmailLoginView.as_view() — run this view. .as_view() is required because EmailLoginView 
-is a class, and Django expects a function. .as_view() converts it.
-- name="login" — gives this URL a nickname so you can refer to it in templates or 
-code as "login" instead of hardcoding /login/
-
-path("logout/", LogoutView.as_view(), name="logout")
-- Same idea — visiting /logout/ triggers Django's built-in logout logic
-
-One-liner summary: This file defines two URLs — /login/ handled by your custom view, /logout/ 
-handled by Django's built-in view — and gives each a name for easy reference elsewhere.
-
+- name : A unique string name for the URL route.
 """
 urlpatterns = [
     path("login/", EmailLoginView.as_view(), name="login"),
@@ -55,4 +43,5 @@ urlpatterns = [
     path("tasks/<int:pk>/unassign/", TaskUnassignView.as_view(), name="task_unassign"),
     path("projects/<int:pk>/members/add/", add_member, name="project_add_member"),
     path("projects/<int:pk>/members/<int:user_id>/remove/", remove_member, name="project_remove_member"),
+    path("tasks/mine/", MyTasksView.as_view(), name="my_tasks"),
 ]
