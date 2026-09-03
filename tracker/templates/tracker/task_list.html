@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+
+{% block title %}All Tasks — Project Task Tracker{% endblock %}
+
+{% block extra_head %}
+<style>
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
+  .page-header h1 { font-size: 1.5rem; font-weight: 600; }
+  .filter-bar { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: flex-end; }
+  .filter-group { display: flex; flex-direction: column; gap: 3px; }
+  .filter-group label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; }
+  .filter-group input[type="text"],
+  .filter-group select { padding: 0.35rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.875rem; background: #fff; min-width: 130px; }
+  .filter-group input[type="text"] { min-width: 200px; }
+  .filter-check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.875rem; color: #374151; padding-bottom: 2px; }
+  .filter-check input { margin: 0; }
+  .btn-filter { padding: 0.38rem 1rem; background: #1e293b; color: #fff; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; align-self: flex-end; }
+  .btn-filter:hover { background: #334155; }
+  .btn-clear { padding: 0.38rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.875rem; color: #64748b; text-decoration: none; align-self: flex-end; }
+  .btn-clear:hover { background: #f1f5f9; }
+  .result-meta { font-size: 0.8rem; color: #94a3b8; margin-bottom: 0.6rem; }
+  .sort-links { display: flex; gap: 0.4rem; align-items: center; }
+  .sort-link { font-size: 0.75rem; padding: 2px 8px; border: 1px solid #e2e8f0; border-radius: 4px; text-decoration: none; color: #64748b; }
+  .sort-link:hover { background: #f8fafc; }
+  .sort-link.active { background: #1e293b; color: #fff; border-color: #1e293b; }
+  .task-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+  .task-table th { text-align: left; padding: 0.7rem 1rem; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+  .task-table td { padding: 0.8rem 1rem; font-size: 0.875rem; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+  .task-table tr:last-child td { border-bottom: none; }
+  .task-table tr:hover td { background: #f8fafc; }
+  .task-link { font-weight: 500; color: #1e293b; text-decoration: none; }
+  .task-link:hover { color: #3b82f6; }
+  .proj-link { font-size: 0.8rem; color: #3b82f6; text-decoration: none; }
+  .proj-link:hover { text-decoration: underline; }
+  .badge { display: inline-block; padding: 2px 7px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .s-backlog { background:#f1f5f9;color:#475569; }
+  .s-in_progress { background:#dbeafe;color:#1d4ed8; }
+  .s-in_review { background:#ede9fe;color:#6d28d9; }
+  .s-blocked { background:#fee2e2;color:#b91c1c; }
+  .s-done { background:#dcfce7;color:#15803d; }
+  .p-low { background:#f1f5f9;color:#64748b; }
+  .p-medium { background:#fef9c3;color:#854d0e; }
+  .p-high { background:#ffedd5;color:#c2410c; }
+  .p-critical { background:#fee2e2;color:#b91c1c; }
+  .due-overdue { color: #b91c1c; font-weight: 500; }
+  .empty-state { text-align: center; padding: 3rem; color: #94a3b8; }
+  .pagination { display: flex; gap: 0.4rem; align-items: center; margin-top: 1.25rem; flex-wrap: wrap; }
+  .pagination a, .pagination span { padding: 0.3rem 0.65rem; border: 1px solid #e2e8f0; border-radius: 5px; font-size: 0.8rem; text-decoration: none; color: #374151; }
+  .pagination a:hover { background: #f1f5f9; }
+  .pagination .current { background: #1e293b; color: #fff; border-color: #1e293b; }
+  .pagination .disabled { color: #cbd5e1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>All Tasks</h1>
+</div>
+
+<form method="get" action="">
+  <div class="filter-bar">
+    <div class="filter-group">
+      <label>Search</label>
+      <input type="text" name="q" value="{{ params.q }}" placeholder="Title or description…">
+    </div>
+
+    <div class="filter-group">
+      <label>Project</label>
+      <select name="project">
+        <option value="">All projects</option>
+        {% for p in projects %}
+          <option value="{{ p.pk }}" {% if params.project == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Status</label>
+      <select name="status">
+        <option value="">Any status</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}" {% if params.status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Priority</label>
+      <select name="priority">
+        <option value="">Any priority</option>
+        {% for value, label in priority_choices %}
+          <option value="{{ value }}" {% if params.priority == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label>Assignee</label>
+      <select name="assignee">
+        <option value="">Anyone</option>
+        {% for u in all_users %}
+          <option value="{{ u.pk }}" {% if params.assignee == u.pk|stringformat:"s" %}selected{% endif %}>{{ u.username }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <label class="filter-check">
+      <input type="checkbox" name="overdue" value="1" {% if params.overdue == "1" %}checked{% endif %}>
+      Overdue only
+    </label>
+
+    <input type="hidden" name="sort" value="{{ params.sort }}">
+
+    <button type="submit" class="btn-filter">Filter</button>
+    <a class="btn-clear" href="{% url 'task_list' %}">Clear</a>
+  </div>
+</form>
+
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+  <span class="result-meta">{{ paginator.count }} task{{ paginator.count|pluralize }} found</span>
+  <div class="sort-links">
+    <span style="font-size:0.75rem;color:#94a3b8;margin-right:4px;">Sort:</span>
+    <a class="sort-link {% if params.sort == 'due_date' or not params.sort %}active{% endif %}"
+       href="?{% for k,v in params.items %}{% if k != 'sort' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=due_date">Due date</a>
+    <a class="sort-link {% if params.sort == 'priority' %}active{% endif %}"
+       href="?{% for k,v in params.items %}{% if k != 'sort' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=priority">Priority</a>
+    <a class="sort-link {% if params.sort == 'updated' %}active{% endif %}"
+       href="?{% for k,v in params.items %}{% if k != 'sort' and k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}sort=updated">Last updated</a>
+  </div>
+</div>
+
+{% if tasks %}
+  <table class="task-table">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Project</th>
+        <th>Status</th>
+        <th>Priority</th>
+        <th>Due Date</th>
+        <th>Assignees</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for task in tasks %}
+        <tr>
+          <td><a class="task-link" href="{% url 'task_detail' task.pk %}">{{ task.title }}</a></td>
+          <td><a class="proj-link" href="{% url 'project_detail' task.project.pk %}">{{ task.project.name }}</a></td>
+          <td><span class="badge s-{{ task.status }}">{{ task.get_status_display }}</span></td>
+          <td><span class="badge p-{{ task.priority }}">{{ task.get_priority_display }}</span></td>
+          <td>
+            {% if task.due_date %}
+              <span {% if task.due_date < today and task.status != 'done' %}class="due-overdue"{% endif %}>
+                {{ task.due_date }}
+              </span>
+            {% else %}—{% endif %}
+          </td>
+          <td style="font-size:0.8rem;color:#475569;">
+            {% for a in task.assignments.all %}{{ a.user.username }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if is_paginated %}
+    <div class="pagination">
+      {% if page_obj.has_previous %}
+        <a href="?{% for k,v in params.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}">‹ Prev</a>
+      {% else %}
+        <span class="disabled">‹ Prev</span>
+      {% endif %}
+
+      {% for num in paginator.page_range %}
+        {% if page_obj.number == num %}
+          <span class="current">{{ num }}</span>
+        {% elif num > page_obj.number|add:"-3" and num < page_obj.number|add:"3" %}
+          <a href="?{% for k,v in params.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ num }}">{{ num }}</a>
+        {% endif %}
+      {% endfor %}
+
+      {% if page_obj.has_next %}
+        <a href="?{% for k,v in params.items %}{% if k != 'page' %}{{ k }}={{ v }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}">Next ›</a>
+      {% else %}
+        <span class="disabled">Next ›</span>
+      {% endif %}
+    </div>
+  {% endif %}
+
+{% else %}
+  <div class="empty-state">No tasks match your filters.</div>
+{% endif %}
+{% endblock %}

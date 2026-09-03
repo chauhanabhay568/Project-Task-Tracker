@@ -14,6 +14,7 @@ from .views import (
     TaskCreateView,
     TaskDeleteView,
     TaskDetailView,
+    TaskListView,
     TaskStatusChangeView,
     TaskUnassignView,
     TaskUpdateView,
@@ -44,6 +45,7 @@ urlpatterns = [
     path("tasks/<int:pk>/unassign/", TaskUnassignView.as_view(), name="task_unassign"),
     path("projects/<int:pk>/members/add/", add_member, name="project_add_member"),
     path("projects/<int:pk>/members/<int:user_id>/remove/", remove_member, name="project_remove_member"),
+    path("tasks/", TaskListView.as_view(), name="task_list"),
     path("tasks/mine/", MyTasksView.as_view(), name="my_tasks"),
     path("tasks/<int:pk>/comments/add/", AddCommentView.as_view(), name="task_comment_add"),
 ]

@@ -11,7 +11,7 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from .audit import log_change
 from .decorators import manager_required
-from .services import cascade_unassign
+from .services import cascade_unassign, filtered_task_queryset
 from .mixins import ProjectAccessMixin
 from .models import Comment, Project, ProjectMembership, Task, TaskAssignment, User
 from .transitions import attempt_transition, legal_next_statuses
@@ -444,5 +444,31 @@ class MyTasksView(LoginRequiredMixin, ListView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         from datetime import date
+        ctx["today"] = date.today()
+        return ctx
+
+
+class TaskListView(LoginRequiredMixin, ListView):
+    template_name = "tracker/task_list.html"
+    context_object_name = "tasks"
+    paginate_by = 25
+
+    def get_queryset(self):
+        return filtered_task_queryset(self.request.user, self.request.GET).prefetch_related("assignments__user")
+
+    def get_context_data(self, **kwargs):
+        from datetime import date
+        ctx = super().get_context_data(**kwargs)
+        user = self.request.user
+        if user.role == User.Role.MANAGER:
+            projects = Project.objects.filter(archived=False).order_by("name")
+        else:
+            member_ids = ProjectMembership.objects.filter(user=user).values_list("project_id", flat=True)
+            projects = Project.objects.filter(archived=False, id__in=member_ids).order_by("name")
+        ctx["projects"] = projects
+        ctx["status_choices"] = Task.Status.choices
+        ctx["priority_choices"] = Task.Priority.choices
+        ctx["all_users"] = User.objects.order_by("username")
+        ctx["params"] = self.request.GET
         ctx["today"] = date.today()
         return ctx
