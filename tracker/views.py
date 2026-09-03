@@ -13,7 +13,7 @@ from .audit import log_change
 from .decorators import manager_required
 from .services import cascade_unassign
 from .mixins import ProjectAccessMixin
-from .models import Project, ProjectMembership, Task, TaskAssignment, User
+from .models import Comment, Project, ProjectMembership, Task, TaskAssignment, User
 from .transitions import attempt_transition, legal_next_statuses
 
 
@@ -235,6 +235,15 @@ class TaskForm(forms.ModelForm):
         }
 
 
+class CommentForm(forms.ModelForm):
+    class Meta:
+        model = Comment
+        fields = ["text"]
+        widgets = {
+            "text": forms.Textarea(attrs={"class": "form-input", "rows": 3, "placeholder": "Leave a comment…"}),
+        }
+
+
 class TaskCreateView(LoginRequiredMixin, ProjectAccessMixin, CreateView):
     model = Task
     form_class = TaskForm
@@ -284,6 +293,29 @@ class TaskDetailView(LoginRequiredMixin, ProjectAccessMixin, DetailView):
         ctx["assignable_members"] = User.objects.filter(
             pk__in=member_ids
         ).exclude(pk__in=assigned_user_ids).order_by("username")
+        ctx["comment_form"] = CommentForm()
+
+        timeline = [
+            {"type": "created", "timestamp": self.object.created_at, "label": "Task created."}
+        ]
+        for entry in self.object.history.select_related("changed_by"):
+            timeline.append({
+                "type": "history",
+                "timestamp": entry.changed_at,
+                "field_name": entry.field_name,
+                "old_value": entry.old_value,
+                "new_value": entry.new_value,
+                "changed_by": entry.changed_by,
+            })
+        for comment in self.object.comments.select_related("author"):
+            timeline.append({
+                "type": "comment",
+                "timestamp": comment.timestamp,
+                "author": comment.author,
+                "text": comment.text,
+            })
+        timeline.sort(key=lambda e: e["timestamp"])
+        ctx["timeline"] = timeline
         return ctx
 
 
@@ -350,6 +382,25 @@ class TaskUnassignView(LoginRequiredMixin, ProjectAccessMixin, View):
         ).delete()
         if deleted:
             log_change(self.task, "assignee", str(user), None, request.user)
+        return redirect("task_detail", pk=self.task.pk)
+
+
+class AddCommentView(LoginRequiredMixin, ProjectAccessMixin, View):
+    http_method_names = ["post"]
+
+    def get_object(self):
+        if not hasattr(self, "task"):
+            self.task = get_object_or_404(Task, pk=self.kwargs["pk"])
+        return self.task
+
+    def post(self, request, pk):
+        self.get_object()
+        form = CommentForm(request.POST)
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.task = self.task
+            comment.author = request.user
+            comment.save()
         return redirect("task_detail", pk=self.task.pk)
 
 

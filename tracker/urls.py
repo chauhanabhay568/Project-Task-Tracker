@@ -2,6 +2,7 @@ from django.contrib.auth.views import LogoutView
 from django.urls import path
 
 from .views import (
+    AddCommentView,
     ArchivedProjectListView,
     EmailLoginView,
     MyTasksView,
@@ -44,4 +45,5 @@ urlpatterns = [
     path("projects/<int:pk>/members/add/", add_member, name="project_add_member"),
     path("projects/<int:pk>/members/<int:user_id>/remove/", remove_member, name="project_remove_member"),
     path("tasks/mine/", MyTasksView.as_view(), name="my_tasks"),
+    path("tasks/<int:pk>/comments/add/", AddCommentView.as_view(), name="task_comment_add"),
 ]

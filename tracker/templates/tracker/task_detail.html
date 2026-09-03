@@ -43,6 +43,29 @@
   .btn-assign { padding: 0.35rem 0.75rem; background: #1e293b; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; }
   .btn-assign:hover { background: #334155; }
   .no-assignees { color: #94a3b8; font-size: 0.875rem; }
+  .timeline-section { margin-top: 2rem; }
+  .timeline-section h2 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 1rem; }
+  .timeline { display: flex; flex-direction: column; gap: 0; }
+  .timeline-entry { display: flex; gap: 0.75rem; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9; }
+  .timeline-entry:last-child { border-bottom: none; }
+  .tl-icon { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; margin-top: 1px; }
+  .tl-icon-created { background: #dbeafe; color: #1d4ed8; }
+  .tl-icon-history { background: #f1f5f9; color: #475569; }
+  .tl-icon-comment { background: #f0fdf4; color: #15803d; }
+  .tl-body { flex: 1; min-width: 0; }
+  .tl-meta { font-size: 0.75rem; color: #94a3b8; margin-top: 2px; }
+  .tl-text { font-size: 0.875rem; color: #1e293b; line-height: 1.5; }
+  .tl-text strong { font-weight: 600; }
+  .tl-change { font-size: 0.875rem; color: #374151; }
+  .tl-old { color: #94a3b8; text-decoration: line-through; }
+  .tl-arrow { color: #94a3b8; margin: 0 4px; }
+  .tl-new { color: #1e293b; font-weight: 500; }
+  .comment-box { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-top: 1.5rem; }
+  .comment-box h2 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 0.75rem; }
+  .form-input { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.875rem; font-family: inherit; resize: vertical; }
+  .form-input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 2px #bfdbfe; }
+  .btn-comment { margin-top: 0.5rem; padding: 0.4rem 1rem; background: #1e293b; color: #fff; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; }
+  .btn-comment:hover { background: #334155; }
 </style>
 {% endblock %}
 
@@ -130,5 +153,54 @@
 {% else %}
   <p class="placeholder">No description.</p>
 {% endif %}
+
+<div class="comment-box">
+  <h2>Add a comment</h2>
+  <form method="post" action="{% url 'task_comment_add' task.pk %}">
+    {% csrf_token %}
+    {{ comment_form.text }}
+    <button type="submit" class="btn-comment">Post comment</button>
+  </form>
+</div>
+
+<div class="timeline-section">
+  <h2>Activity</h2>
+  <div class="timeline">
+    {% for entry in timeline %}
+      <div class="timeline-entry">
+        {% if entry.type == "created" %}
+          <div class="tl-icon tl-icon-created">✦</div>
+          <div class="tl-body">
+            <div class="tl-text">{{ entry.label }}</div>
+            <div class="tl-meta">{{ entry.timestamp|date:"M j, Y · g:i A" }}</div>
+          </div>
+        {% elif entry.type == "history" %}
+          <div class="tl-icon tl-icon-history">⟳</div>
+          <div class="tl-body">
+            <div class="tl-change">
+              <strong>{{ entry.field_name|capfirst }}</strong> changed
+              {% if entry.old_value %}<span class="tl-old">{{ entry.old_value }}</span>{% endif %}
+              <span class="tl-arrow">→</span>
+              <span class="tl-new">{{ entry.new_value|default:"—" }}</span>
+            </div>
+            <div class="tl-meta">
+              {% if entry.changed_by %}{{ entry.changed_by.username }}{% else %}System{% endif %}
+              · {{ entry.timestamp|date:"M j, Y · g:i A" }}
+            </div>
+          </div>
+        {% elif entry.type == "comment" %}
+          <div class="tl-icon tl-icon-comment">💬</div>
+          <div class="tl-body">
+            <div class="tl-text">{{ entry.text }}</div>
+            <div class="tl-meta">
+              {% if entry.author %}{{ entry.author.username }}{% else %}Deleted user{% endif %}
+              · {{ entry.timestamp|date:"M j, Y · g:i A" }}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
 
 {% endblock %}
