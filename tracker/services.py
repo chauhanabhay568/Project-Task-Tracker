@@ -6,10 +6,33 @@ from django.db.models import Q
 from django.utils import timezone
 
 from .audit import log_change
-from .models import Task, TaskAssignment, TaskBlocker
+from .models import AlertDismissal, Task, TaskAssignment, TaskBlocker
 
 if TYPE_CHECKING:
     from .models import Project, User
+
+
+def active_alerts_for_user(user):
+    from django.db.models import F
+    from .models import User as UserModel
+
+    today = timezone.now().date()
+    qs = Task.objects.filter(
+        due_date__lt=today,
+        project__archived=False,
+    ).exclude(status=Task.Status.DONE)
+
+    if user.role != UserModel.Role.MANAGER:
+        qs = qs.filter(project__memberships__user=user)
+
+    # A dismissal is "still valid" only when its due_date_at_dismissal snapshot
+    # matches the task's current due_date. If the due date was changed after
+    # dismissal, the alert reappears.
+    valid_dismissal_ids = AlertDismissal.objects.filter(
+        user=user, due_date_at_dismissal=F("task__due_date")
+    ).values_list("task_id", flat=True)
+
+    return qs.exclude(pk__in=valid_dismissal_ids).distinct()
 
 
 def sync_blockers(task: Task, blocking_tasks) -> None:

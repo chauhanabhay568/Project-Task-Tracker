@@ -11,9 +11,9 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from .audit import log_change
 from .decorators import manager_required
-from .services import assign_user_to_task, cascade_unassign, filtered_task_queryset, set_due_date, sync_blockers
+from .services import active_alerts_for_user, assign_user_to_task, cascade_unassign, filtered_task_queryset, set_due_date, sync_blockers
 from .mixins import ProjectAccessMixin
-from .models import Comment, Project, ProjectMembership, Task, TaskAssignment, User
+from .models import AlertDismissal, Comment, Project, ProjectMembership, Task, TaskAssignment, User
 from .transitions import attempt_transition, legal_next_statuses
 
 
@@ -485,3 +485,33 @@ class TaskListView(LoginRequiredMixin, ListView):
         ctx["params"] = self.request.GET
         ctx["today"] = date.today()
         return ctx
+
+
+class AlertListView(LoginRequiredMixin, ListView):
+    template_name = "tracker/alerts.html"
+    context_object_name = "alerts"
+
+    def get_queryset(self):
+        return active_alerts_for_user(self.request.user).select_related("project")
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        from datetime import date
+        ctx["today"] = date.today()
+        return ctx
+
+
+class DismissAlertView(LoginRequiredMixin, View):
+    http_method_names = ["post"]
+
+    def post(self, request, pk):
+        task = get_object_or_404(Task, pk=pk)
+        dismissal, _ = AlertDismissal.objects.get_or_create(
+            task=task, user=request.user,
+            defaults={"due_date_at_dismissal": task.due_date},
+        )
+        # Always refresh the snapshot so a stale dismissal is re-armed correctly.
+        if dismissal.due_date_at_dismissal != task.due_date:
+            dismissal.due_date_at_dismissal = task.due_date
+            dismissal.save(update_fields=["due_date_at_dismissal"])
+        return redirect("alert_list")

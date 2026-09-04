@@ -3,7 +3,9 @@ from django.urls import path
 
 from .views import (
     AddCommentView,
+    AlertListView,
     ArchivedProjectListView,
+    DismissAlertView,
     EmailLoginView,
     MyTasksView,
     ProjectCreateView,
@@ -48,4 +50,6 @@ urlpatterns = [
     path("tasks/", TaskListView.as_view(), name="task_list"),
     path("tasks/mine/", MyTasksView.as_view(), name="my_tasks"),
     path("tasks/<int:pk>/comments/add/", AddCommentView.as_view(), name="task_comment_add"),
+    path("alerts/", AlertListView.as_view(), name="alert_list"),
+    path("tasks/<int:pk>/alerts/dismiss/", DismissAlertView.as_view(), name="alert_dismiss"),
 ]
