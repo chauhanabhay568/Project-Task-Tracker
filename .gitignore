@@ -14,3 +14,6 @@ venv/
 .env.*.local
 *.log
 .DS_Store
+design/
+CLAUDE.md
+.claude/
