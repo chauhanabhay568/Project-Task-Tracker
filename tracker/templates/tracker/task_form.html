@@ -54,6 +54,15 @@
       {% if form.due_date.errors %}<span class="field-error">{{ form.due_date.errors.0 }}</span>{% endif %}
     </div>
 
+    {% if form.blocking_tasks.field.queryset.exists %}
+    <div class="field">
+      <label for="{{ form.blocking_tasks.id_for_label }}">{{ form.blocking_tasks.label }}</label>
+      {{ form.blocking_tasks }}
+      {% if form.blocking_tasks.errors %}<span class="field-error">{{ form.blocking_tasks.errors.0 }}</span>{% endif %}
+      <span style="font-size:0.78rem;color:#94a3b8;">Hold Ctrl / Cmd to select multiple.</span>
+    </div>
+    {% endif %}
+
     <div class="form-actions">
       <button type="submit" class="btn-primary">{% if object %}Save changes{% else %}Create task{% endif %}</button>
       <a class="btn-cancel" href="{% url 'project_detail' project.pk %}">Cancel</a>

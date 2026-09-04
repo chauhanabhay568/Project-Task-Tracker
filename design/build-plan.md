@@ -90,43 +90,63 @@ it's a guide, not a hard cap.
 
 ---
 
-## Session 5 (~2h) — Search, filters, and bulk actions
-**Goals:** 6, 7
+## Session 5 (~1.5h) — Search/filters, blocking task UI, overdue alerts
+**Goals:** 6, 3 (closing a gap), 10
 
-1. Main cross-project task list view. Build the queryset server-side: text search
-   (`icontains` on title/description), filters (project, status, assignee, priority,
-   overdue), sorting (due date, priority, last update), pagination with a total count. Do not
-   load everything into the browser.
-2. Multi-select checkboxes on that list, posting to a bulk-action endpoint.
-3. The bulk endpoint loops over each selected task, runs it through the same validated
-   functions from Session 3/4 (transition function, assignment function), and collects a
-   per-task result: succeeded / rejected + reason. Return a results table, not a single
-   pass/fail.
-4. CSV export button that serializes whatever the current filters return.
-5. Commit: search/filter first, then bulk actions, then CSV export — three separate commits.
+1. Search/filters - cross-project task list with server-side text
+   search, filters (project, status, assignee, priority, overdue), sorting (due date,
+   priority, last update), and pagination with a total count. Committed as
+   **"search and filters"**. Included here for the record, not to be rebuilt.
+2. Add blocking-task selection to the task form: a multi-select of other tasks in the same
+   project, wired to create/delete `TaskBlocker` rows on save. The model and constraint
+   already exist — this is UI only, closing the one part of goal 3 that currently has no way
+   to be used outside Django admin.
+3. Commit: **"blocking task UI"**.
+4. Overdue alert query: tasks where `due_date < today` and status isn't Done, excluding ones
+   the current user has an active `AlertDismissal` for (no dismissal at all, or a dismissal
+   whose stored due date no longer matches the task's current due date).
+5. Nav badge showing the count of currently-active alerts for the logged-in user.
+6. Dismiss action: POST-only, creates an `AlertDismissal` row tied to the task's *current*
+   due date at the moment of dismissal.
+7. Confirm the "reappears if due date changes" rule actually works: dismiss an alert, then
+   edit that task's due date, and check the alert comes back.
+8. Commit: **"overdue alerts"**.
 
 ---
 
-## Session 6 (~2h) — Dashboard and alerts
-**Goals:** 8, 10
+## Session 6 (~2h) — Dashboard
+**Goal:** 8
 
 1. Dashboard aggregates: open, overdue, due this week, completed this week — a handful of
-   `.aggregate()`/`.count()` queries.
+   `.aggregate()`/`.count()` queries, scoped to projects the viewer can see (same visibility
+   rule as the task list — all projects for Managers, only their own for Members).
 2. Breakdown by status and by assignee (`.values().annotate(Count(...))`).
-3. Completions over the last 8 weeks — group `HistoryEntry` rows where the new value is
-   "Done" by week. A small Chart.js snippet fed by this as JSON is enough; no need for a full
-   JS charting framework.
-4. Overdue alerts: query tasks where `due_date < today` and status isn't Done, excluding ones
-   the current user has an active `AlertDismissal` for. Nav badge = count of those.
-5. Dismiss action: create an `AlertDismissal` row tied to the task's current due date. When
-   editing a task, if the due date changes, either delete the matching dismissal or check the
-   stored due date against the dismissal's stored due date when computing "is this still
-   dismissed" — either approach satisfies "the alert comes back."
-6. Commit: dashboard first, then alerts.
+3. Completions over the last 8 weeks — group `HistoryEntry` rows where `field_name="status"`
+   and `new_value="done"` by week. A small Chart.js snippet fed by this as JSON is enough; no
+   need for a full JS charting framework.
+4. Commit: **"dashboard"**.
 
 ---
 
-## Session 7 (~1–2h) — Seed data, deployment, and docs
+## Session 7 (~1.5h) — Bulk actions and CSV export
+**Goal:** 7
+
+1. Small refactor first: pull the assignment logic currently inside `TaskAssignView` out into
+   a reusable function (matching the pattern `attempt_transition` already set), so both the
+   single-task view and the bulk endpoint call the same validated code — don't duplicate the
+   eligibility check.
+2. Multi-select checkboxes on the task list view (from Session 5, Step 0), posting to a
+   bulk-action endpoint.
+3. The bulk endpoint loops over each selected task, runs it through the same validated
+   functions (`attempt_transition`, the assignment function), and collects a per-task result:
+   succeeded / rejected + reason. Return a results table, not a single pass/fail.
+4. Commit: **"bulk actions"**.
+5. CSV export button that serializes whatever the current filters on the task list return.
+6. Commit: **"CSV export"**.
+
+---
+
+## Session 8 (~1–2h) — Seed data, deployment, and docs
 The session most people skip time for, and it's graded directly.
 
 1. Write a management command that seeds: a few users of both roles, several projects
@@ -142,9 +162,6 @@ The session most people skip time for, and it's graded directly.
    marked as reversed.
 5. Final commit and a last check of the whole commit history — this is what gets read
    closely, so skim it yourself first.
-
----
-
 ## If time runs short
 
 Per the brief, finishing 8 goals solidly beats limping through all 10. Safest things to trim

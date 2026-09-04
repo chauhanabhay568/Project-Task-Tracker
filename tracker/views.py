@@ -11,7 +11,7 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from .audit import log_change
 from .decorators import manager_required
-from .services import cascade_unassign, filtered_task_queryset
+from .services import assign_user_to_task, cascade_unassign, filtered_task_queryset, set_due_date, sync_blockers
 from .mixins import ProjectAccessMixin
 from .models import Comment, Project, ProjectMembership, Task, TaskAssignment, User
 from .transitions import attempt_transition, legal_next_statuses
@@ -224,6 +224,13 @@ class ArchivedProjectListView(ListView):
 It creates a form automatically using the model(basically table) fields.
 """
 class TaskForm(forms.ModelForm):
+    blocking_tasks = forms.ModelMultipleChoiceField(
+        queryset=Task.objects.none(),
+        required=False,
+        label="Blocked by",
+        widget=forms.SelectMultiple(attrs={"class": "form-input"}),
+    )
+
     class Meta:
         model = Task
         fields = ["title", "description", "priority", "due_date"]
@@ -233,6 +240,17 @@ class TaskForm(forms.ModelForm):
             "priority"   : forms.Select(attrs={"class": "form-input"}),
             "due_date": forms.DateInput(attrs={"class": "form-input", "type": "date"}),
         }
+
+    def __init__(self, *args, project=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if project is not None:
+            qs = Task.objects.filter(project=project)
+            if self.instance.pk:
+                qs = qs.exclude(pk=self.instance.pk)
+                self.fields["blocking_tasks"].initial = (
+                    self.instance.blocked_by.values_list("blocking_task", flat=True)
+                )
+            self.fields["blocking_tasks"].queryset = qs
 
 
 class CommentForm(forms.ModelForm):
@@ -249,22 +267,18 @@ class TaskCreateView(LoginRequiredMixin, ProjectAccessMixin, CreateView):
     form_class = TaskForm
     template_name = "tracker/task_form.html"
 
-    """
-    When it runs: only after the submitted form has already passed validation (title isn't empty, due_date is a real date, etc.) — 
-        right before the object gets saved to the database.
-    form.instance is the not-yet-saved Task object that Django built from the form data. The form itself only collects title, 
-    description, priority, due_date (that's all TaskForm.Meta.fields lists) — it has no field for project or status, because 
-    those shouldn't come from user input. So this method fills in the two missing pieces by hand:
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["project"] = self.project
+        return kwargs
 
-            project → whatever project the URL pointed to (self.project, supplied by ProjectAccessMixin)
-            status → always force it to BACKLOG, since every task should start there
-
-    Then super().form_valid(form) hands control back to Django's normal CreateView, which actually calls form.save() and stores the row.
-    """
     def form_valid(self, form):
         form.instance.project = self.project
         form.instance.status = Task.Status.BACKLOG
-        return super().form_valid(form)
+        form.instance.save()
+        self.object = form.instance
+        sync_blockers(self.object, form.cleaned_data["blocking_tasks"])
+        return redirect(self.get_success_url())
 
     def get_success_url(self):
         return reverse_lazy("project_detail", kwargs={"pk": self.project.pk})
@@ -349,20 +363,9 @@ class TaskAssignView(LoginRequiredMixin, ProjectAccessMixin, View):
     def post(self, request, pk):
         self.get_object()
         user = get_object_or_404(User, pk=request.POST.get("user_id"))
-        is_member = ProjectMembership.objects.filter(
-            project=self.project, user=user
-        ).exists()
-        if not is_member:
-            messages.error(
-                request,
-                f"{user.username} is not a member of this project and cannot be assigned.",
-            )
-            return redirect("task_detail", pk=self.task.pk)
-        assignment, created = TaskAssignment.objects.get_or_create(
-            task=self.task, user=user
-        )
-        if created:
-            log_change(self.task, "assignee", None, str(user), request.user)
+        ok, msg = assign_user_to_task(self.task, user, actor=request.user)
+        if not ok:
+            messages.error(request, msg)
         return redirect("task_detail", pk=self.task.pk)
 
 
@@ -408,6 +411,16 @@ class TaskUpdateView(LoginRequiredMixin, ProjectAccessMixin, UpdateView):
     model = Task
     form_class = TaskForm
     template_name = "tracker/task_form.html"
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["project"] = self.project
+        return kwargs
+
+    def form_valid(self, form):
+        self.object = form.save()
+        sync_blockers(self.object, form.cleaned_data["blocking_tasks"])
+        return redirect(self.get_success_url())
 
     def get_success_url(self):
         return reverse_lazy("task_detail", kwargs={"pk": self.object.pk})

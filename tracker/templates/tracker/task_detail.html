@@ -43,6 +43,12 @@
   .btn-assign { padding: 0.35rem 0.75rem; background: #1e293b; color: #fff; border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 500; cursor: pointer; }
   .btn-assign:hover { background: #334155; }
   .no-assignees { color: #94a3b8; font-size: 0.875rem; }
+  .blockers-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
+  .blockers-section h3 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 0.75rem; }
+  .blocker-row { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0; font-size: 0.875rem; color: #1e293b; border-bottom: 1px solid #f1f5f9; }
+  .blocker-row:last-of-type { border-bottom: none; }
+  .blocker-title { color: #1e293b; text-decoration: none; font-weight: 500; }
+  .blocker-title:hover { color: #3b82f6; }
   .timeline-section { margin-top: 2rem; }
   .timeline-section h2 { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 1rem; }
   .timeline { display: flex; flex-direction: column; gap: 0; }
@@ -117,6 +123,20 @@
     {% endfor %}
   </div>
 {% endif %}
+
+{% with blockers=task.blocked_by.all %}
+{% if blockers %}
+<div class="blockers-section">
+  <h3>Blocked by</h3>
+  {% for tb in blockers %}
+    <div class="blocker-row">
+      <a class="blocker-title" href="{% url 'task_detail' tb.blocking_task.pk %}">{{ tb.blocking_task.title }}</a>
+      <span class="badge badge-{{ tb.blocking_task.status }}">{{ tb.blocking_task.get_status_display }}</span>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
 
 <div class="assignees-section">
   <h3>Assigned to</h3>

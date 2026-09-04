@@ -6,10 +6,21 @@ from django.db.models import Q
 from django.utils import timezone
 
 from .audit import log_change
-from .models import Task, TaskAssignment
+from .models import Task, TaskAssignment, TaskBlocker
 
 if TYPE_CHECKING:
     from .models import Project, User
+
+
+def sync_blockers(task: Task, blocking_tasks) -> None:
+    blocking_ids = {t.pk for t in blocking_tasks}
+    TaskBlocker.objects.filter(blocked_task=task).exclude(
+        blocking_task_id__in=blocking_ids
+    ).delete()
+    for blocking_task in blocking_tasks:
+        TaskBlocker.objects.get_or_create(
+            blocked_task=task, blocking_task=blocking_task
+        )
 
 
 def cascade_unassign(user: "User", project: "Project", actor: "User | None") -> int:
@@ -55,3 +66,22 @@ def filtered_task_queryset(user, params):
     qs = qs.order_by(sort_map.get(sort, "due_date"))
 
     return qs.distinct()
+
+
+def assign_user_to_task(task, user, actor):
+    from .models import ProjectMembership, TaskAssignment
+
+    if not ProjectMembership.objects.filter(project=task.project, user=user).exists():
+        return False, f"{user.username} is not a member of this project and cannot be assigned."
+    assignment, created = TaskAssignment.objects.get_or_create(task=task, user=user)
+    if created:
+        log_change(task, "assignee", None, str(user), actor)
+    return True, f"Assigned to {user}."
+
+
+def set_due_date(task, new_due_date, actor):
+    old_due_date = task.due_date
+    task.due_date = new_due_date
+    task.save()
+    log_change(task, "due_date", old_due_date, new_due_date, actor)
+    return True, f"Due date updated to {new_due_date}."
