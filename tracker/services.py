@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from django.db.models import Q
+from django.db.models import Case, F, IntegerField, Q, Value, When
 from django.utils import timezone
 
 from .audit import log_change
@@ -69,14 +69,18 @@ def filtered_task_queryset(user, params):
         qs = qs.filter(project__memberships__user=user)
     qs = qs.filter(project__archived=False)
 
-    if params.get("project"):
-        qs = qs.filter(project_id=params["project"])
+    # Filter values arrive straight from the query string, so an id that is not
+    # a number is ignored rather than allowed to raise ValueError deep in the ORM.
+    project_id = params.get("project")
+    if project_id and str(project_id).isdigit():
+        qs = qs.filter(project_id=project_id)
     if params.get("status"):
         qs = qs.filter(status=params["status"])
     if params.get("priority"):
         qs = qs.filter(priority=params["priority"])
-    if params.get("assignee"):
-        qs = qs.filter(assignments__user_id=params["assignee"])
+    assignee_id = params.get("assignee")
+    if assignee_id and str(assignee_id).isdigit():
+        qs = qs.filter(assignments__user_id=assignee_id)
     if params.get("overdue") == "1":
         qs = qs.filter(due_date__lt=timezone.now().date()).exclude(status=Task.Status.DONE)
 
@@ -85,8 +89,25 @@ def filtered_task_queryset(user, params):
         qs = qs.filter(Q(title__icontains=q) | Q(description__icontains=q))
 
     sort = params.get("sort")
-    sort_map = {"due_date": "due_date", "priority": "priority", "updated": "-updated_at"}
-    qs = qs.order_by(sort_map.get(sort, "due_date"))
+    if sort == "priority":
+        # Priority is stored as text, so ordering by the column would sort
+        # alphabetically ("low" before "medium"). Rank it by severity instead.
+        qs = qs.annotate(
+            priority_rank=Case(
+                When(priority=Task.Priority.CRITICAL, then=Value(0)),
+                When(priority=Task.Priority.HIGH, then=Value(1)),
+                When(priority=Task.Priority.MEDIUM, then=Value(2)),
+                When(priority=Task.Priority.LOW, then=Value(3)),
+                default=Value(4),
+                output_field=IntegerField(),
+            )
+        ).order_by("priority_rank")
+    elif sort == "updated":
+        qs = qs.order_by("-updated_at")
+    else:
+        # Default (and explicit "due_date"): soonest first, with undated tasks
+        # last rather than sorting ahead of genuinely overdue work.
+        qs = qs.order_by(F("due_date").asc(nulls_last=True))
 
     return qs.distinct()
 

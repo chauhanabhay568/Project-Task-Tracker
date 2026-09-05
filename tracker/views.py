@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied
+from django.db.models import F
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
@@ -416,11 +417,16 @@ class MyTasksView(LoginRequiredMixin, ListView):
     context_object_name = "tasks"
 
     def get_queryset(self):
+        # Archived projects are hidden here for the same reason they are hidden
+        # from the task list — archiving takes a project out of the day-to-day views.
         return (
-            Task.objects.filter(assignments__user=self.request.user)
+            Task.objects.filter(
+                assignments__user=self.request.user,
+                project__archived=False,
+            )
             .select_related("project")
             .distinct()
-            .order_by("due_date")
+            .order_by(F("due_date").asc(nulls_last=True))
         )
 
     def get_context_data(self, **kwargs):
