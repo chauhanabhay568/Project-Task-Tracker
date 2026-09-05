@@ -368,13 +368,26 @@ class TaskUpdateView(LoginRequiredMixin, ProjectAccessMixin, UpdateView):
     form_class = TaskForm
     template_name = "tracker/task_form.html"
 
+    # Fields whose edits are recorded in the task timeline. Status and assignee
+    # are deliberately absent — they have their own dedicated views that log
+    # their own changes, and neither is editable through this form.
+    AUDITED_FIELDS = ("title", "description", "priority", "due_date")
+
     def get_form_kwargs(self):
         kwargs = super().get_form_kwargs()
         kwargs["project"] = self.project
         return kwargs
 
     def form_valid(self, form):
+        # Read the stored row before saving so we can diff it against the new
+        # values; self.object is already mutated by the form at this point.
+        previous = Task.objects.get(pk=self.object.pk)
         self.object = form.save()
+        for field in self.AUDITED_FIELDS:
+            old_value = getattr(previous, field)
+            new_value = getattr(self.object, field)
+            if old_value != new_value:
+                log_change(self.object, field, old_value, new_value, self.request.user)
         sync_blockers(self.object, form.cleaned_data["blocking_tasks"])
         return redirect(self.get_success_url())
 
