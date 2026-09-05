@@ -15,6 +15,7 @@
   .overdue-days { color: #b91c1c; font-size: 0.8rem; font-weight: 600; }
   .btn-dismiss { padding: 0.25rem 0.7rem; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 0.78rem; color: #374151; background: none; cursor: pointer; }
   .btn-dismiss:hover { background: #f1f5f9; }
+  .not-assigned { color: #94a3b8; font-size: 0.78rem; }
   .empty { color: #94a3b8; font-size: 0.95rem; padding: 2rem 0; text-align: center; }
 </style>
 {% endblock %}
@@ -43,10 +44,14 @@
           <td>{{ task.due_date }}</td>
           <td><span class="overdue-days">{{ today|timeuntil:task.due_date }} overdue</span></td>
           <td>
-            <form method="post" action="{% url 'alert_dismiss' task.pk %}">
-              {% csrf_token %}
-              <button type="submit" class="btn-dismiss">Dismiss</button>
-            </form>
+            {% if task.pk in dismissible_task_ids %}
+              <form method="post" action="{% url 'alert_dismiss' task.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn-dismiss">Dismiss</button>
+              </form>
+            {% else %}
+              <span class="not-assigned">Not assigned to you</span>
+            {% endif %}
           </td>
         </tr>
       {% endfor %}

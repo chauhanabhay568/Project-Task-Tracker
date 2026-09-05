@@ -2,6 +2,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView
+from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
@@ -73,7 +74,7 @@ class ProjectListView(LoginRequiredMixin, ListView):
         return Project.objects.filter(archived=False, id__in=member_project_ids).order_by("name")
 
 
-class ProjectDetailView(LoginRequiredMixin, DetailView):
+class ProjectDetailView(LoginRequiredMixin, ProjectAccessMixin, DetailView):
     model = Project
     template_name = "tracker/project_detail.html"
     context_object_name = "project"
@@ -453,6 +454,11 @@ class AlertListView(LoginRequiredMixin, ListView):
         ctx = super().get_context_data(**kwargs)
         from datetime import date
         ctx["today"] = date.today()
+        # Only alerts on tasks assigned to this user can be dismissed, so the
+        # button is rendered only where the POST would actually be accepted.
+        ctx["dismissible_task_ids"] = set(
+            TaskAssignment.objects.filter(user=self.request.user).values_list("task_id", flat=True)
+        )
         return ctx
 
 
@@ -496,11 +502,28 @@ class DashboardView(LoginRequiredMixin, View):
         return render(request, "tracker/dashboard.html", stats)
 
 
-class DismissAlertView(LoginRequiredMixin, View):
+class DismissAlertView(LoginRequiredMixin, ProjectAccessMixin, View):
     http_method_names = ["post"]
 
+    def get_object(self):
+        if not hasattr(self, "task"):
+            self.task = get_object_or_404(Task, pk=self.kwargs["pk"])
+        return self.task
+
     def post(self, request, pk):
-        task = get_object_or_404(Task, pk=pk)
+        task = self.get_object()
+
+        # The brief scopes dismissal to "an alert for a task they are assigned
+        # to", so project membership alone is not enough — even for a manager.
+        if not TaskAssignment.objects.filter(task=task, user=request.user).exists():
+            raise PermissionDenied
+
+        # due_date_at_dismissal is NOT NULL, and a task with no due date can
+        # never be overdue, so there is nothing to dismiss.
+        if task.due_date is None:
+            messages.error(request, "This task has no due date, so it has no overdue alert.")
+            return redirect("alert_list")
+
         dismissal, _ = AlertDismissal.objects.get_or_create(
             task=task, user=request.user,
             defaults={"due_date_at_dismissal": task.due_date},

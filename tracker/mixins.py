@@ -1,4 +1,5 @@
 from django.core.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404
 
 from .models import Project, ProjectMembership, User
 
@@ -9,11 +10,16 @@ class ProjectAccessMixin:
     Sets self.project for the view to use.
     """
 
-    def dispatch(self, request, *args, **kwargs):
+    def get_project(self, **kwargs):
+        # Task views carry the project in the URL; project views resolve it from
+        # the object itself, which for a Project view *is* the project.
         if "project_pk" in kwargs:
-            self.project = Project.objects.get(pk=kwargs["project_pk"])
-        else:
-            self.project = self.get_object().project
+            return get_object_or_404(Project, pk=kwargs["project_pk"])
+        obj = self.get_object()
+        return obj if isinstance(obj, Project) else obj.project
+
+    def dispatch(self, request, *args, **kwargs):
+        self.project = self.get_project(**kwargs)
 
         user = request.user
         is_manager = user.role == User.Role.MANAGER
