@@ -11,7 +11,7 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from .audit import log_change
 from .decorators import manager_required
-from .services import active_alerts_for_user, assign_user_to_task, cascade_unassign, filtered_task_queryset, set_due_date, sync_blockers
+from .services import active_alerts_for_user, assign_user_to_task, cascade_unassign, dashboard_stats, filtered_task_queryset, set_due_date, sync_blockers
 from .mixins import ProjectAccessMixin
 from .models import AlertDismissal, Comment, Project, ProjectMembership, Task, TaskAssignment, User
 from .transitions import attempt_transition, legal_next_statuses
@@ -454,6 +454,13 @@ class AlertListView(LoginRequiredMixin, ListView):
         from datetime import date
         ctx["today"] = date.today()
         return ctx
+
+
+class DashboardView(LoginRequiredMixin, View):
+    def get(self, request):
+        from django.shortcuts import render
+        stats = dashboard_stats(request.user)
+        return render(request, "tracker/dashboard.html", stats)
 
 
 class DismissAlertView(LoginRequiredMixin, View):

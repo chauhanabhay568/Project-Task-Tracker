@@ -102,6 +102,67 @@ def assign_user_to_task(task, user, actor):
     return True, f"Assigned to {user}."
 
 
+def dashboard_stats(user):
+    from datetime import date, timedelta
+    from django.db.models import Count
+    from .models import HistoryEntry, Project, User as UserModel
+
+    today = date.today()
+
+    # Base task queryset scoped by role
+    tasks = Task.objects.filter(project__archived=False)
+    if user.role != UserModel.Role.MANAGER:
+        tasks = tasks.filter(project__memberships__user=user).distinct()
+
+    total = tasks.count()
+    done = tasks.filter(status=Task.Status.DONE).count()
+    in_progress = tasks.filter(status=Task.Status.IN_PROGRESS).count()
+    blocked = tasks.filter(status=Task.Status.BLOCKED).count()
+    overdue = tasks.exclude(status=Task.Status.DONE).filter(due_date__lt=today).count()
+
+    # Assignee breakdown — top 5 members by open task count
+    assignee_rows = (
+        tasks.exclude(status=Task.Status.DONE)
+        .filter(assignments__isnull=False)
+        .values("assignments__user__username")
+        .annotate(count=Count("id"))
+        .order_by("-count")[:5]
+    )
+    assignee_breakdown = [
+        {"name": r["assignments__user__username"], "count": r["count"]}
+        for r in assignee_rows
+    ]
+
+    # 8-week completions — count HistoryEntry rows where status changed to Done
+    weeks = []
+    history_qs = HistoryEntry.objects.filter(
+        field_name="status", new_value=Task.Status.DONE
+    )
+    if user.role != UserModel.Role.MANAGER:
+        history_qs = history_qs.filter(
+            task__project__memberships__user=user
+        ).distinct()
+
+    for i in range(7, -1, -1):
+        week_start = today - timedelta(days=today.weekday()) - timedelta(weeks=i)
+        week_end = week_start + timedelta(days=6)
+        count = history_qs.filter(
+            changed_at__date__gte=week_start,
+            changed_at__date__lte=week_end,
+        ).count()
+        weeks.append({"label": week_start.strftime("%-d %b"), "count": count})
+
+    return {
+        "total": total,
+        "done": done,
+        "in_progress": in_progress,
+        "blocked": blocked,
+        "overdue": overdue,
+        "assignee_breakdown": assignee_breakdown,
+        "weeks": weeks,
+    }
+
+
 def set_due_date(task, new_due_date, actor):
     old_due_date = task.due_date
     task.due_date = new_due_date
