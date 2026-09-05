@@ -97,6 +97,7 @@ class TaskBlocker(models.Model):
 class HistoryEntry(models.Model):
     task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name="history")
     field_name = models.CharField(max_length=100)
+    # Values are always stored as strings (coerced by log_change in audit.py).
     old_value = models.TextField(blank=True, null=True)
     new_value = models.TextField(blank=True, null=True)
     changed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name="history_entries")

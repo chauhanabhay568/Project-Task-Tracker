@@ -25,19 +25,18 @@ from .views import (
     remove_member,
     restore_project,
 )
-"""
-- name : A unique string name for the URL route.
-"""
+
 urlpatterns = [
     path("login/", EmailLoginView.as_view(), name="login"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("projects/", ProjectListView.as_view(), name="project_list"),
+    # Fixed paths before parameterised ones to avoid ambiguity.
     path("projects/new/", ProjectCreateView.as_view(), name="project_create"),
+    path("projects/archived/", ArchivedProjectListView.as_view(), name="project_archived_list"),
     path("projects/<int:pk>/", ProjectDetailView.as_view(), name="project_detail"),
     path("projects/<int:pk>/edit/", ProjectUpdateView.as_view(), name="project_edit"),
     path("projects/<int:pk>/archive/", archive_project, name="project_archive"),
     path("projects/<int:pk>/restore/", restore_project, name="project_restore"),
-    path("projects/archived/", ArchivedProjectListView.as_view(), name="project_archived_list"),
     path("projects/<int:project_pk>/tasks/new/", TaskCreateView.as_view(), name="task_create"),
     path("tasks/<int:pk>/", TaskDetailView.as_view(), name="task_detail"),
     path("tasks/<int:pk>/edit/", TaskUpdateView.as_view(), name="task_edit"),

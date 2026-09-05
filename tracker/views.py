@@ -18,12 +18,11 @@ from .transitions import attempt_transition, legal_next_statuses
 
 
 class EmailLoginForm(forms.Form):
-    # Simplification: USERNAME_FIELD is left as 'username', but every account's
-    # username is set equal to their email address at creation time, so presenting
-    # this field as "Email" works without any custom auth backend.
+    # USERNAME_FIELD is left as 'username', but every account's username is set
+    # equal to their email address at creation time, so presenting this field as
+    # "Email" works without a custom auth backend.
     email = forms.EmailField(
-        label="Email", # This is the human-readable text shown next to the input in the template. 
-                        #Remember {{ form.email.label }} in your login.html? This is exactly where "Email" comes from.
+        label="Email",
         widget=forms.EmailInput(attrs={"autofocus": True, "class": "form-input"}),
     )
     password = forms.CharField(
@@ -31,13 +30,9 @@ class EmailLoginForm(forms.Form):
         widget=forms.PasswordInput(attrs={"class": "form-input"}),
     )
 
-
-    """
-    This is a helper method. After the form is submitted and validated, cleaned_data holds the sanitized values. 
-    It returns them as a dict with key "username" (not "email") because Django's auth system expects username.
-    
-    """
     def get_credentials(self):
+        # Returns {"username": ..., "password": ...} because Django's auth
+        # system expects "username", not "email".
         return {
             "username": self.cleaned_data["email"],
             "password": self.cleaned_data["password"],
@@ -46,26 +41,15 @@ class EmailLoginForm(forms.Form):
 
 class EmailLoginView(LoginView):
     template_name = "tracker/login.html"
-    authentication_form = None  # use default ModelBackend under the hood
+    authentication_form = None
 
     def get_form(self, form_class=None):
         kwargs = self.get_form_kwargs()
         kwargs.pop("request", None)
-        # **kwargs means unpacking the dictionary
-        # calling a class = creating an instance. The ** just unpacks the dict into named arguments
         return EmailLoginForm(**kwargs)
 
-
     def form_valid(self, form):
-
-        """
-        Purpose: runs once the submitted form passes validation — 
-        checks credentials are actually correct, then logs the user in 
-        or shows an error.
-        If the form is not valid then renderinf happens automatically by Django else it redirects to /project/
-        """
         from django.contrib.auth import authenticate, login
-        # form.get_credentials() which returns {"username": email_value, "password": password_value}
         credentials = form.get_credentials()
         user = authenticate(self.request, **credentials)
         if user is None:
@@ -74,22 +58,18 @@ class EmailLoginView(LoginView):
         login(self.request, user)
         return super(LoginView, self).form_valid(form)
 
+
 class ProjectListView(LoginRequiredMixin, ListView):
-    template_name = "tracker/project_list.html" #tells ListView which template file to render.
-    context_object_name = "projects" #Decides what variable name the template will use to access the list of objects.
+    template_name = "tracker/project_list.html"
+    context_object_name = "projects"
 
     def get_queryset(self):
         user = self.request.user
         if user.role == User.Role.MANAGER:
             return Project.objects.filter(archived=False).order_by("name")
-        """
-        first, look up every row in ProjectMembership where user matches this person — these rows 
-        represent "this user belongs to this project." .values_list("project_id", flat=True) 
-        extracts just the project IDs from those rows, as a flat list of numbers (rather than full objects) — e.g. [2, 5, 9]
-        """
+        # Members only see projects they belong to — get their project IDs from
+        # ProjectMembership, then filter Project to that set.
         member_project_ids = ProjectMembership.objects.filter(user=user).values_list("project_id", flat=True)
-        # Return only the projects whose id is in that list of member project IDs 
-        # (and still excluding archived ones), sorted by name.
         return Project.objects.filter(archived=False, id__in=member_project_ids).order_by("name")
 
 
@@ -104,10 +84,7 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         ctx["non_members"] = User.objects.exclude(pk__in=member_ids).order_by("username")
         return ctx
 
-"""
-a form for creating/editing a Project — but unlike forms.Form, a ModelForm builds 
-its fields directly from a model, instead of you declaring each field by hand.
-"""
+
 class ProjectForm(forms.ModelForm):
     class Meta:
         model = Project
@@ -118,9 +95,7 @@ class ProjectForm(forms.ModelForm):
             "description": forms.Textarea(attrs={"class": "form-input", "rows": 4}),
         }
 
-"""
-the "create a new project" page — shows the form, and on valid submission, creates a new Project row.
-"""
+
 @method_decorator(manager_required, name="dispatch")
 class ProjectCreateView(CreateView):
     form_class = ProjectForm
@@ -130,14 +105,10 @@ class ProjectCreateView(CreateView):
         form.instance.owner = self.request.user
         return super().form_valid(form)
 
-# builds the URL /projects/<pk>/ from the URL name instead of hardcoding the path.
     def get_success_url(self):
         return reverse_lazy("project_detail", kwargs={"pk": self.object.pk})
 
-"""
-the "edit an existing project" page — same form, but pre-filled with an existing project's data, 
-and saves changes to that same row instead of creating a new one.
-"""
+
 @method_decorator(manager_required, name="dispatch")
 class ProjectUpdateView(UpdateView):
     model = Project
@@ -148,18 +119,9 @@ class ProjectUpdateView(UpdateView):
         return reverse_lazy("project_detail", kwargs={"pk": self.object.pk})
 
 
-
-
-"""
-Both views do the same thing in opposite directions:
-
-- @require_POST — only accepts POST requests (from a form button), not someone typing the URL
-- @manager_required — only managers can reach this, members get 403
-- get_object_or_404 — finds the project or returns 404
-- Sets archived = True (or False for restore) and saves — only this one field, nothing else is touched
-- Redirects back to the same project's detail page
-
-"""
+# @require_POST ensures these can only be triggered by a form button, not a GET request.
+# project.save() without update_fields touches all fields — acceptable here since
+# archive/restore is the only write path for this flag.
 @require_POST
 @manager_required
 def archive_project(request, pk):
@@ -202,14 +164,10 @@ def remove_member(request, pk, user_id):
         )
     return redirect("project_detail", pk=pk)
 
-"""
- It's the page at /projects/archived/ that lists all archived projects — only visible to managers.
-"""
+
 @method_decorator(manager_required, name="dispatch")
 class ArchivedProjectListView(ListView):
     template_name = "tracker/project_archived_list.html"
-    #  context_object_name = "projects" — passes the list to the template 
-    # as {{ projects }}, same variable name as the regular list so the template works the same way.
     context_object_name = "projects"
 
     def get_queryset(self):
@@ -220,9 +178,6 @@ class ArchivedProjectListView(ListView):
 # Task views
 # ---------------------------------------------------------------------------
 
-"""
-It creates a form automatically using the model(basically table) fields.
-"""
 class TaskForm(forms.ModelForm):
     blocking_tasks = forms.ModelMultipleChoiceField(
         queryset=Task.objects.none(),
@@ -237,7 +192,7 @@ class TaskForm(forms.ModelForm):
         widgets = {
             "title": forms.TextInput(attrs={"class": "form-input"}),
             "description": forms.Textarea(attrs={"class": "form-input", "rows": 3}),
-            "priority"   : forms.Select(attrs={"class": "form-input"}),
+            "priority": forms.Select(attrs={"class": "form-input"}),
             "due_date": forms.DateInput(attrs={"class": "form-input", "type": "date"}),
         }
 
