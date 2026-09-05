@@ -26,7 +26,11 @@ I split the build into small, shippable slices — each session ended with worki
 
 11. **Overdue alerts** — alert list, dismissal with due date snapshot, context processor to show alert count in the nav.
 
-12. **Railway deploy setup** — `Procfile`, environment variable wiring, CSRF trusted origins, WhiteNoise for static files.
+12. **Dashboard** — headline stat cards (total, done, in progress, blocked, overdue), assignee breakdown table, 8-week completions chart drawn on a canvas element without an external library.
+
+13. **CSV export** — export the currently filtered task list as a `.csv` file, reusing the same queryset function the task list uses so filters carry through automatically.
+
+14. **Railway deploy setup** — `Procfile`, environment variable wiring, CSRF trusted origins, WhiteNoise for static files.
 
 ## What order did you build in, and why that order?
 
@@ -51,4 +55,4 @@ Nothing from the core requirements was cut. The optional stretch features that d
 - **Email notifications** — would need a mail provider, environment config, and background job or synchronous SMTP. Too much infrastructure for the time available.
 - **Real-time updates** — WebSockets or polling. Not in the requirements, not worth the complexity.
 - **Pagination on project and membership lists** — added it on the task list because the filtering UI implies many results. Left it off the other lists on the assumption they stay short.
-- **Bulk task operations** — marking multiple tasks done at once. Not in the spec.
+- **Bulk task operations** — selecting multiple tasks and applying a status, assignee, or due date change across all of them with per-task success/failure reporting. Goal 7 from the spec; not yet built.

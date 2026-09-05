@@ -38,6 +38,8 @@ The whole thing is synchronous and stateless from the server's perspective. No b
 
 **No REST API.** The requirement was a working web app, not an API. Server-rendered HTML is simpler to build, simpler to deploy, and simpler to test when you don't have a separate frontend. Adding an API later is straightforward because the business logic already lives in `services.py`, `transitions.py`, and `audit.py` — those are not tied to the HTML layer.
 
+**No charting library for the dashboard.** The 8-week completions chart is drawn directly on an HTML `<canvas>` element using a small inline script. No Chart.js, no D3. The data is simple enough (8 bars, one number each) that pulling in an external library would be more complexity than it saves.
+
 **No real-time updates.** If two people have the same task open, one person's changes don't appear live for the other. A full page refresh shows the latest state. WebSockets or polling would add significant complexity for a feature that was not in the requirements.
 
 **No file attachments.** The schema has no attachment model and the UI has no upload flow. It was not in the spec.

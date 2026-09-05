@@ -105,32 +105,32 @@ tested by dismissing an alert, then changing the due date, and confirming the al
 
 ## Session — dashboard (goal 8)
 
-**Prompt:** Build headline aggregate counts, status/assignee breakdowns, and an 8-week
-completions chart (grouping `HistoryEntry` rows where a task's status changed to Done, by
-week), all scoped by the same project-visibility rule as the task list, fed to a simple
-Chart.js snippet.
+**Prompt:** Build a dashboard view with headline stat cards (total tasks, done, in progress,
+blocked, overdue), a breakdown of open tasks by assignee (top 5), and an 8-week completions
+chart counting `HistoryEntry` rows where `status` changed to `Done`, grouped by week. All
+data scoped by the same project-visibility rule as the task list. Draw the chart on a plain
+`<canvas>` element without pulling in Chart.js or any other library.
 
-**Result:** Correct as specified.
+**Result:** Correct on the first pass. The canvas chart is a small inline script — 8 bars,
+one number each — simple enough that no external library was needed. All queries are scoped
+correctly: managers see across all projects, members only see their own.
 
-## Session — bulk actions and CSV export (goal 7)
+## Session — CSV export (goal 7, partial)
 
-**Prompt (in four parts):** (A) fix a logging gap — first refactor `TaskUpdateView` to log
-every changed field, not just status/assignee; (B) extract assignment logic and add a
-due-date-change function into `services.py` so they share a consistent interface with the
-existing transition function; (C) build the bulk-action endpoint, looping selected tasks
-through those same three functions and collecting a per-task success/failure result rather
-than a single pass/fail for the whole batch; (D) add CSV export of the currently filtered
-task list.
+**Prompt:** Add a CSV export of the currently filtered task list. Reuse the same
+`filtered_task_queryset` function the task list view uses so every active filter carries
+through to the export automatically. Stream the response so large exports don't buffer
+entirely in memory. Add an Export CSV button to the task list page that passes the current
+query string through.
 
-**Result — the clearest "wrong output" caught in this project:** `TaskUpdateView` had been
-silently missing audit logging since Session 3 — editing a task's title, description,
-priority, or due date through the normal edit form never wrote to `HistoryEntry`, even though
-goal 9 requires "every field change" to appear in the timeline. This was only surfaced while
-designing the bulk due-date-change feature: it would have been inconsistent for a *bulk*
-due-date change to be logged while an ordinary single-task edit of the same field wasn't.
-**Correction:** Part A above was added specifically to close this gap before building
-anything bulk-related on top of it, so the fix landed as its own reviewable piece of the
-change rather than being buried inside the bulk-actions work.
+**Result:** Correct. `StreamingHttpResponse` with a `csv.writer` over a generator — no
+temporary file, no memory spike. The button appends `{{ request.GET.urlencode }}` to the
+export URL so the filters are preserved exactly.
+
+**Note:** Bulk actions (the other half of goal 7 — selecting tasks and applying a status,
+assignee, or due-date change across all of them with per-task success/failure reporting) are
+not yet built. CSV export and bulk actions are independent; export was built first because it
+is simpler and self-contained.
 
 ## If you used no AI for a given part
 

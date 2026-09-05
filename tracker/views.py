@@ -456,6 +456,39 @@ class AlertListView(LoginRequiredMixin, ListView):
         return ctx
 
 
+class TaskCsvExportView(LoginRequiredMixin, View):
+    def get(self, request):
+        import csv
+        from django.http import StreamingHttpResponse
+
+        qs = filtered_task_queryset(request.user, request.GET).prefetch_related("assignments__user")
+
+        def rows():
+            yield ["Title", "Project", "Status", "Priority", "Due Date", "Assignees"]
+            for task in qs:
+                assignees = ", ".join(a.user.username for a in task.assignments.all())
+                yield [
+                    task.title,
+                    task.project.name,
+                    task.get_status_display(),
+                    task.get_priority_display(),
+                    task.due_date or "",
+                    assignees,
+                ]
+
+        class Echo:
+            def write(self, value):
+                return value
+
+        writer = csv.writer(Echo())
+        response = StreamingHttpResponse(
+            (writer.writerow(row) for row in rows()),
+            content_type="text/csv",
+        )
+        response["Content-Disposition"] = 'attachment; filename="tasks.csv"'
+        return response
+
+
 class DashboardView(LoginRequiredMixin, View):
     def get(self, request):
         from django.shortcuts import render
