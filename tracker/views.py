@@ -4,7 +4,7 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.views import LoginView
 from django.core.exceptions import PermissionDenied
 from django.db.models import F
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
 from django.views import View
@@ -13,7 +13,7 @@ from django.views.generic import CreateView, DeleteView, DetailView, ListView, U
 
 from .audit import log_change
 from .decorators import manager_required
-from .services import active_alerts_for_user, assign_user_to_task, cascade_unassign, dashboard_stats, filtered_task_queryset, set_due_date, sync_blockers
+from .services import active_alerts_for_user, assign_user_to_task, bulk_apply_action, cascade_unassign, dashboard_stats, filtered_task_queryset, set_due_date, sync_blockers
 from .mixins import ProjectAccessMixin
 from .models import AlertDismissal, Comment, Project, ProjectMembership, Task, TaskAssignment, User
 from .transitions import attempt_transition, legal_next_statuses
@@ -25,7 +25,7 @@ class EmailLoginForm(forms.Form):
     # "Email" works without a custom auth backend.
     email = forms.EmailField(
         label="Email",
-        widget=forms.EmailInput(attrs={"autofocus": True, "class": "form-input"}),
+        widget=forms.EmailInput(attrs={"autofocus": True, "class": "form-input"}), # validates that the user enters a real email structure 
     )
     password = forms.CharField(
         label="Password",
@@ -69,8 +69,7 @@ class ProjectListView(LoginRequiredMixin, ListView):
         user = self.request.user
         if user.role == User.Role.MANAGER:
             return Project.objects.filter(archived=False).order_by("name")
-        # Members only see projects they belong to — get their project IDs from
-        # ProjectMembership, then filter Project to that set.
+        # Members only see projects they belong to.
         member_project_ids = ProjectMembership.objects.filter(user=user).values_list("project_id", flat=True)
         return Project.objects.filter(archived=False, id__in=member_project_ids).order_by("name")
 
@@ -121,9 +120,8 @@ class ProjectUpdateView(UpdateView):
         return reverse_lazy("project_detail", kwargs={"pk": self.object.pk})
 
 
-# @require_POST ensures these can only be triggered by a form button, not a GET request.
-# project.save() without update_fields touches all fields — acceptable here since
-# archive/restore is the only write path for this flag.
+# project.save() without update_fields touches all fields — acceptable here
+# since archive/restore is the only write path for this flag.
 @require_POST
 @manager_required
 def archive_project(request, pk):
@@ -460,6 +458,55 @@ class TaskListView(LoginRequiredMixin, ListView):
         ctx["params"] = self.request.GET
         ctx["today"] = date.today()
         return ctx
+
+
+class TaskBulkActionView(LoginRequiredMixin, View):
+    http_method_names = ["post"]
+
+    def post(self, request):
+        return_qs = request.POST.get("return_qs", "")
+        list_url = f"{reverse_lazy('task_list')}?{return_qs}" if return_qs else reverse_lazy("task_list")
+
+        task_ids = request.POST.getlist("task_ids")
+        if not task_ids:
+            messages.error(request, "Select at least one task before applying a bulk action.")
+            return redirect(list_url)
+
+        action = request.POST.get("action")
+        if action not in ("status", "assignee", "due_date"):
+            messages.error(request, "Choose a bulk action to apply.")
+            return redirect(list_url)
+
+        new_status = request.POST.get("new_status")
+        assignee_id = request.POST.get("user_id")
+        due_date = None
+
+        if action == "due_date":
+            from datetime import datetime
+            raw_due_date = request.POST.get("due_date", "").strip()
+            if not raw_due_date:
+                messages.error(request, "Choose a due date for the bulk update.")
+                return redirect(list_url)
+            try:
+                due_date = datetime.strptime(raw_due_date, "%Y-%m-%d").date()
+            except ValueError:
+                messages.error(request, "That due date isn't valid.")
+                return redirect(list_url)
+
+        results = bulk_apply_action(
+            request.user,
+            task_ids,
+            action,
+            due_date=due_date,
+            new_status=new_status,
+            assignee_id=assignee_id,
+        )
+
+        return render(request, "tracker/task_bulk_result.html", {
+            "results": results,
+            "action": action,
+            "return_qs": return_qs,
+        })
 
 
 class AlertListView(LoginRequiredMixin, ListView):

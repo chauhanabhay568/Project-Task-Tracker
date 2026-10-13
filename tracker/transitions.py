@@ -52,7 +52,6 @@ def attempt_transition(
     """
     old_status = task.status
 
-    # --- unblock path: Blocked → pre_blocked_status ---
     if old_status == S.BLOCKED:
         if not task.pre_blocked_status:
             return (
@@ -71,7 +70,6 @@ def attempt_transition(
         log_change(task, "status", old_status, new_status, actor)
         return (True, None)
 
-    # --- all other transitions must appear in the allow-list ---
     if (old_status, new_status) not in _ALLOWED:
         return (
             False,
@@ -79,7 +77,6 @@ def attempt_transition(
             "permitted. Check the allowed status flow.",
         )
 
-    # --- Done gate ---
     if new_status == S.DONE:
         # blocked_by entries whose blocking task is not yet done
         unfinished = task.blocked_by.exclude(
@@ -92,7 +89,6 @@ def attempt_transition(
                 "unfinished tasks.",
             )
 
-    # --- Blocked: snapshot current status ---
     if new_status == S.BLOCKED:
         task.pre_blocked_status = old_status
 

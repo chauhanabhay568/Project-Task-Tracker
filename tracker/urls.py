@@ -14,6 +14,7 @@ from .views import (
     ProjectListView,
     ProjectUpdateView,
     TaskAssignView,
+    TaskBulkActionView,
     TaskCreateView,
     TaskCsvExportView,
     TaskDeleteView,
@@ -30,6 +31,7 @@ from .views import (
 
 urlpatterns = [
     path("login/", EmailLoginView.as_view(), name="login"),
+    #  LogoutView just clears the session and redirects to LOGOUT_REDIRECT_URL ('/login/', set in config/settings.py:142)
     path("logout/", LogoutView.as_view(), name="logout"),
     path("projects/", ProjectListView.as_view(), name="project_list"),
     # Fixed paths before parameterised ones to avoid ambiguity.
@@ -49,6 +51,7 @@ urlpatterns = [
     path("projects/<int:pk>/members/add/", add_member, name="project_add_member"),
     path("projects/<int:pk>/members/<int:user_id>/remove/", remove_member, name="project_remove_member"),
     path("tasks/", TaskListView.as_view(), name="task_list"),
+    path("tasks/bulk/", TaskBulkActionView.as_view(), name="task_bulk_action"),
     path("tasks/export/", TaskCsvExportView.as_view(), name="task_csv_export"),
     path("tasks/mine/", MyTasksView.as_view(), name="my_tasks"),
     path("tasks/<int:pk>/comments/add/", AddCommentView.as_view(), name="task_comment_add"),

@@ -49,6 +49,12 @@
   .pagination a:hover { background: #f1f5f9; }
   .pagination .current { background: #1e293b; color: #fff; border-color: #1e293b; }
   .pagination .disabled { color: #cbd5e1; }
+  .bulk-bar { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.7rem 1rem; margin-bottom: 0.75rem; }
+  .bulk-bar select, .bulk-bar input[type="date"] { padding: 0.35rem 0.6rem; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.875rem; }
+  .bulk-count { font-size: 0.8rem; color: #94a3b8; margin-left: auto; }
+  .btn-apply { padding: 0.38rem 1rem; background: #1e293b; color: #fff; border: none; border-radius: 6px; font-size: 0.875rem; font-weight: 500; cursor: pointer; }
+  .btn-apply:hover { background: #334155; }
+  .btn-apply:disabled { background: #cbd5e1; cursor: not-allowed; }
 </style>
 {% endblock %}
 
@@ -131,38 +137,107 @@
 </div>
 
 {% if tasks %}
-  <table class="task-table">
-    <thead>
-      <tr>
-        <th>Title</th>
-        <th>Project</th>
-        <th>Status</th>
-        <th>Priority</th>
-        <th>Due Date</th>
-        <th>Assignees</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for task in tasks %}
+  <form method="post" action="{% url 'task_bulk_action' %}" id="bulk-form">
+    {% csrf_token %}
+    <input type="hidden" name="return_qs" value="{{ request.GET.urlencode }}">
+
+    <div class="bulk-bar">
+      <select name="action" id="bulk-action">
+        <option value="">Bulk action…</option>
+        <option value="status">Change status to…</option>
+        <option value="assignee">Assign to…</option>
+        <option value="due_date">Set due date to…</option>
+      </select>
+
+      <select name="new_status" class="bulk-field" data-for="status" style="display:none;">
+        <option value="">Select status…</option>
+        {% for value, label in status_choices %}
+          <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+
+      <select name="user_id" class="bulk-field" data-for="assignee" style="display:none;">
+        <option value="">Select person…</option>
+        {% for u in all_users %}
+          <option value="{{ u.pk }}">{{ u.username }}</option>
+        {% endfor %}
+      </select>
+
+      <input type="date" name="due_date" class="bulk-field" data-for="due_date" style="display:none;">
+
+      <button type="submit" class="btn-apply" id="bulk-submit" disabled>Apply to selected</button>
+      <span class="bulk-count" id="bulk-count">0 selected</span>
+    </div>
+
+    <table class="task-table">
+      <thead>
         <tr>
-          <td><a class="task-link" href="{% url 'task_detail' task.pk %}">{{ task.title }}</a></td>
-          <td><a class="proj-link" href="{% url 'project_detail' task.project.pk %}">{{ task.project.name }}</a></td>
-          <td><span class="badge s-{{ task.status }}">{{ task.get_status_display }}</span></td>
-          <td><span class="badge p-{{ task.priority }}">{{ task.get_priority_display }}</span></td>
-          <td>
-            {% if task.due_date %}
-              <span {% if task.due_date < today and task.status != 'done' %}class="due-overdue"{% endif %}>
-                {{ task.due_date }}
-              </span>
-            {% else %}—{% endif %}
-          </td>
-          <td style="font-size:0.8rem;color:#475569;">
-            {% for a in task.assignments.all %}{{ a.user.username }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
-          </td>
+          <th><input type="checkbox" id="select-all"></th>
+          <th>Title</th>
+          <th>Project</th>
+          <th>Status</th>
+          <th>Priority</th>
+          <th>Due Date</th>
+          <th>Assignees</th>
         </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {% for task in tasks %}
+          <tr>
+            <td><input type="checkbox" name="task_ids" value="{{ task.pk }}" class="task-checkbox"></td>
+            <td><a class="task-link" href="{% url 'task_detail' task.pk %}">{{ task.title }}</a></td>
+            <td><a class="proj-link" href="{% url 'project_detail' task.project.pk %}">{{ task.project.name }}</a></td>
+            <td><span class="badge s-{{ task.status }}">{{ task.get_status_display }}</span></td>
+            <td><span class="badge p-{{ task.priority }}">{{ task.get_priority_display }}</span></td>
+            <td>
+              {% if task.due_date %}
+                <span {% if task.due_date < today and task.status != 'done' %}class="due-overdue"{% endif %}>
+                  {{ task.due_date }}
+                </span>
+              {% else %}—{% endif %}
+            </td>
+            <td style="font-size:0.8rem;color:#475569;">
+              {% for a in task.assignments.all %}{{ a.user.username }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </form>
+
+  <script>
+    (function () {
+      var form = document.getElementById("bulk-form");
+      var selectAll = document.getElementById("select-all");
+      var checkboxes = Array.prototype.slice.call(form.querySelectorAll(".task-checkbox"));
+      var actionSelect = document.getElementById("bulk-action");
+      var fields = Array.prototype.slice.call(form.querySelectorAll(".bulk-field"));
+      var submitBtn = document.getElementById("bulk-submit");
+      var countLabel = document.getElementById("bulk-count");
+
+      function updateCount() {
+        var checked = checkboxes.filter(function (c) { return c.checked; }).length;
+        countLabel.textContent = checked + " selected";
+        submitBtn.disabled = checked === 0 || !actionSelect.value;
+      }
+
+      function updateFields() {
+        fields.forEach(function (f) {
+          f.style.display = f.dataset.for === actionSelect.value ? "" : "none";
+        });
+        updateCount();
+      }
+
+      selectAll.addEventListener("change", function () {
+        checkboxes.forEach(function (c) { c.checked = selectAll.checked; });
+        updateCount();
+      });
+      checkboxes.forEach(function (c) { c.addEventListener("change", updateCount); });
+      actionSelect.addEventListener("change", updateFields);
+
+      updateFields();
+    })();
+  </script>
 
   {% if is_paginated %}
     <div class="pagination">

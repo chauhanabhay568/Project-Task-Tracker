@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from .audit import log_change
 from .models import AlertDismissal, Task, TaskAssignment, TaskBlocker
+from .transitions import attempt_transition
 
 if TYPE_CHECKING:
     from .models import Project, User
@@ -130,7 +131,6 @@ def dashboard_stats(user):
 
     today = date.today()
 
-    # Base task queryset scoped by role
     tasks = Task.objects.filter(project__archived=False)
     if user.role != UserModel.Role.MANAGER:
         tasks = tasks.filter(project__memberships__user=user).distinct()
@@ -141,7 +141,6 @@ def dashboard_stats(user):
     blocked = tasks.filter(status=Task.Status.BLOCKED).count()
     overdue = tasks.exclude(status=Task.Status.DONE).filter(due_date__lt=today).count()
 
-    # Assignee breakdown — top 5 members by open task count
     assignee_rows = (
         tasks.exclude(status=Task.Status.DONE)
         .filter(assignments__isnull=False)
@@ -154,7 +153,6 @@ def dashboard_stats(user):
         for r in assignee_rows
     ]
 
-    # 8-week completions — count HistoryEntry rows where status changed to Done
     weeks = []
     history_qs = HistoryEntry.objects.filter(
         field_name="status", new_value=Task.Status.DONE
@@ -190,3 +188,61 @@ def set_due_date(task, new_due_date, actor):
     task.save()
     log_change(task, "due_date", old_due_date, new_due_date, actor)
     return True, f"Due date updated to {new_due_date}."
+
+
+def bulk_apply_action(user, task_ids, action, due_date=None, new_status=None, assignee_id=None):
+    """
+    Apply one bulk action ("status", "assignee", or "due_date") across a set
+    of tasks selected from the task list.
+
+    Returns one result dict per requested task_id, in the order given —
+    including ids that don't exist or aren't accessible to *user* — so the
+    caller can report per-task success/failure instead of failing (or
+    silently dropping part of) the whole batch.
+    """
+    from .models import ProjectMembership, User as UserModel
+
+    tasks_by_id = {
+        str(t.pk): t
+        for t in Task.objects.filter(pk__in=task_ids).select_related("project")
+    }
+
+    is_manager = user.role == UserModel.Role.MANAGER
+    member_project_ids = set(
+        ProjectMembership.objects.filter(user=user).values_list("project_id", flat=True)
+    )
+
+    assignee = None
+    if action == "assignee" and assignee_id:
+        assignee = UserModel.objects.filter(pk=assignee_id).first()
+
+    results = []
+    for task_id in task_ids:
+        task = tasks_by_id.get(str(task_id))
+        if task is None:
+            results.append({"task_id": task_id, "task": None, "ok": False, "message": "Task not found."})
+            continue
+
+        if not (is_manager or task.project_id in member_project_ids):
+            results.append({
+                "task_id": task_id, "task": task, "ok": False,
+                "message": "You do not have access to this task's project.",
+            })
+            continue
+
+        if action == "status":
+            ok, message = attempt_transition(task, new_status, actor=user)
+            message = message or f"Moved to {task.get_status_display()}."
+        elif action == "assignee":
+            if assignee is None:
+                ok, message = False, "No user selected to assign."
+            else:
+                ok, message = assign_user_to_task(task, assignee, actor=user)
+        elif action == "due_date":
+            ok, message = set_due_date(task, due_date, actor=user)
+        else:
+            ok, message = False, f"Unknown bulk action '{action}'."
+
+        results.append({"task_id": task_id, "task": task, "ok": ok, "message": message})
+
+    return results
